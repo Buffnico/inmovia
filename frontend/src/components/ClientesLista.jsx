@@ -1,28 +1,6 @@
-import { useEffect, useState } from "react";
 import { API_URL } from "../config";
 
-export default function ClientesLista({ refreshToken, onDeleted }) {
-  const [items, setItems] = useState([]);
-  const [cargando, setCargando] = useState(true);
-  const [err, setErr] = useState(null);
-
-  const cargar = async () => {
-    try {
-      setCargando(true);
-      setErr(null);
-      const r = await fetch(`${API_URL}/api/clientes`);
-      const data = await r.json();
-      setItems(Array.isArray(data) ? data : []);
-    } catch {
-      setErr("No pude cargar los clientes.");
-    } finally {
-      setCargando(false);
-    }
-  };
-
-  // 👇 Recarga cuando cambia refreshToken (y también al montar)
-  useEffect(() => { cargar(); }, [refreshToken]);
-
+export default function ClientesLista({ items, onDeleted }) {
   const borrar = async (id) => {
     const ok = confirm("¿Seguro que querés eliminar este cliente?");
     if (!ok) return;
@@ -32,16 +10,13 @@ export default function ClientesLista({ refreshToken, onDeleted }) {
         const d = await r.json().catch(() => ({}));
         throw new Error(d.message || "No se pudo eliminar");
       }
-      setItems(prev => prev.filter(c => c.id !== id));
-      onDeleted?.(id); // por si otra vista necesita saberlo
+      onDeleted?.(id); // 👈 actualiza estado en App al instante
     } catch (e) {
       alert(e.message || "Error al eliminar");
     }
   };
 
-  if (cargando) return <p>Cargando clientes…</p>;
-  if (err) return <p style={{ color: "red" }}>{err}</p>;
-  if (!items.length) return <p>Sin clientes cargados.</p>;
+  if (!items?.length) return <p>Sin clientes cargados.</p>;
 
   return (
     <table style={{ width:"100%", borderCollapse:"collapse" }}>

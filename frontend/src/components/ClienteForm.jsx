@@ -14,11 +14,9 @@ export default function ClienteForm({ onCreated }) {
   const onSubmit = async (e) => {
     e.preventDefault();
     setMsg("");
-
     if (!form.nombre.trim() || !form.apellido.trim() || !/^\d{7,10}$/.test(form.dni)) {
       return setMsg("Complete nombre, apellido y DNI (7–10 dígitos).");
     }
-
     try {
       setEnviando(true);
       const r = await fetch(`${API_URL}/api/clientes`, {
@@ -30,9 +28,7 @@ export default function ClienteForm({ onCreated }) {
       if (!r.ok) throw new Error(d?.message || "Error al guardar");
       setMsg(`Cliente #${d.id} guardado ✅`);
       setForm({ nombre:"", apellido:"", dni:"", email:"", telefono:"" });
-
-      // 👇 Dispara el refresco en App (y por ende en la Lista)
-      onCreated?.(d);
+      onCreated?.(d); // 👈 agrega al estado en App al instante
     } catch (e2) {
       setMsg(e2.message);
     } finally {
