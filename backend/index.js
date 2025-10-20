@@ -1,20 +1,18 @@
-// index.js
 const express = require("express");
 const cors = require("cors");
 
 const app = express();
-app.use(cors());           // Permite que el frontend (localhost:5173) se conecte
-app.use(express.json());   // Permite recibir datos en formato JSON
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "http://localhost:5173";
 
-// Ruta de prueba para comprobar que todo anda
-app.get("/api/ping", (req, res) => {
+app.use(cors({ origin: FRONTEND_ORIGIN }));
+app.use(express.json());
+
+app.get("/", (_req, res) => res.send("API Inmovia online ✅"));
+app.get("/api/ping", (_req, res) => {
   res.json({ ok: true, message: "Backend Inmovia OK 🚀" });
 });
 
-// Configurar el puerto
 const PORT = process.env.PORT || 3000;
-
-// Encender el servidor
 app.listen(PORT, () => {
-  console.log(`✅ Backend Inmovia escuchando en http://localhost:${PORT}`);
+  console.log(`✅ Backend Inmovia escuchando en puerto ${PORT}`);
 });
