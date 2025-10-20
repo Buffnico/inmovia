@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { API_URL } from "../config";
 
-export default function ClientesLista({ onDeleted }) {
+export default function ClientesLista({ refreshToken, onDeleted }) {
   const [items, setItems] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [err, setErr] = useState(null);
@@ -20,7 +20,7 @@ export default function ClientesLista({ onDeleted }) {
     }
   };
 
-  useEffect(() => { cargar(); }, []);
+  useEffect(() => { cargar(); }, [refreshToken]); // 👈 se recarga cuando cambia
 
   const borrar = async (id) => {
     const ok = confirm("¿Seguro que querés eliminar este cliente?");
