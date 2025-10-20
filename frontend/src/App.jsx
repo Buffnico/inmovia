@@ -9,26 +9,27 @@ export default function App() {
 
   useEffect(() => {
     fetch(`${API_URL}/api/ping`)
-      .then((r) => r.json())
-      .then((d) => setApiMsg(d?.message ?? "Sin respuesta"))
+      .then(r => r.json())
+      .then(d => setApiMsg(d?.message ?? "Sin respuesta"))
       .catch(() => setApiMsg("Backend aún no disponible"));
   }, []);
 
-  const triggerRefresh = () => setRefreshToken((n) => n + 1);
+  const triggerRefresh = () => setRefreshToken(n => n + 1);
 
   return (
-    <div style={{ fontFamily: "system-ui", padding: 24, maxWidth: 900, margin: "0 auto" }}>
+    <div style={{ fontFamily:"system-ui", padding:24, maxWidth:900, margin:"0 auto" }}>
       <h1>Inmovia — Frontend</h1>
-      <hr />
       <h2>Estado del backend</h2>
       <p>{apiMsg}</p>
 
       <hr />
       <h2>Datos del cliente</h2>
+      {/* 👇 MUY IMPORTANTE: pasar onCreated */}
       <ClienteForm onCreated={triggerRefresh} />
 
       <hr />
       <h2>Clientes</h2>
+      {/* 👇 MUY IMPORTANTE: pasar refreshToken y onDeleted */}
       <ClientesLista refreshToken={refreshToken} onDeleted={triggerRefresh} />
     </div>
   );

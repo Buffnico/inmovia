@@ -20,7 +20,8 @@ export default function ClientesLista({ refreshToken, onDeleted }) {
     }
   };
 
-  useEffect(() => { cargar(); }, [refreshToken]); // 👈 se recarga cuando cambia
+  // 👇 Recarga cuando cambia refreshToken (y también al montar)
+  useEffect(() => { cargar(); }, [refreshToken]);
 
   const borrar = async (id) => {
     const ok = confirm("¿Seguro que querés eliminar este cliente?");
@@ -32,26 +33,10 @@ export default function ClientesLista({ refreshToken, onDeleted }) {
         throw new Error(d.message || "No se pudo eliminar");
       }
       setItems(prev => prev.filter(c => c.id !== id));
-      onDeleted?.(id);
-      toast("Cliente eliminado");
+      onDeleted?.(id); // por si otra vista necesita saberlo
     } catch (e) {
-      toast(e.message || "Error al eliminar", true);
+      alert(e.message || "Error al eliminar");
     }
-  };
-
-  const toast = (msg, error = false) => {
-    const el = document.createElement("div");
-    el.textContent = msg;
-    el.style.position = "fixed";
-    el.style.bottom = "24px";
-    el.style.right = "24px";
-    el.style.padding = "10px 14px";
-    el.style.borderRadius = "8px";
-    el.style.background = error ? "#ffdddd" : "#ddffdd";
-    el.style.border = `1px solid ${error ? "#ff9a9a" : "#8ad48a"}`;
-    el.style.zIndex = 9999;
-    document.body.appendChild(el);
-    setTimeout(() => el.remove(), 2200);
   };
 
   if (cargando) return <p>Cargando clientes…</p>;
@@ -59,25 +44,21 @@ export default function ClientesLista({ refreshToken, onDeleted }) {
   if (!items.length) return <p>Sin clientes cargados.</p>;
 
   return (
-    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+    <table style={{ width:"100%", borderCollapse:"collapse" }}>
       <thead>
-        <tr style={{ textAlign: "left", borderBottom: "1px solid #eee" }}>
+        <tr style={{ textAlign:"left", borderBottom:"1px solid #eee" }}>
           <th>Nombre</th><th>Apellido</th><th>DNI</th><th>Email</th><th>Teléfono</th><th></th>
         </tr>
       </thead>
       <tbody>
         {items.map(c => (
-          <tr key={c.id} style={{ borderBottom: "1px solid #f3f3f3" }}>
+          <tr key={c.id} style={{ borderBottom:"1px solid #f3f3f3" }}>
             <td>{c.nombre}</td>
             <td>{c.apellido}</td>
             <td>{c.dni}</td>
             <td>{c.email || "-"}</td>
             <td>{c.telefono || "-"}</td>
-            <td>
-              <button onClick={() => borrar(c.id)} style={{ padding: "4px 8px" }}>
-                Eliminar
-              </button>
-            </td>
+            <td><button onClick={() => borrar(c.id)}>Eliminar</button></td>
           </tr>
         ))}
       </tbody>
