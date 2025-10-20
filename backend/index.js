@@ -42,3 +42,12 @@ app.listen(PORT, () => {
   console.log(`✅ Backend Inmovia escuchando en puerto ${PORT}`);
   console.log(`CORS permitido para: ${FRONTEND_ORIGIN}`);
 });
+
+// Borrar cliente por id
+app.delete("/api/clientes/:id", (req, res) => {
+  const id = Number(req.params.id);
+  const idx = clientes.findIndex(c => c.id === id);
+  if (idx === -1) return res.status(404).json({ ok:false, message:"Cliente no encontrado" });
+  const [eliminado] = clientes.splice(idx, 1);
+  res.json({ ok:true, eliminado });
+});
