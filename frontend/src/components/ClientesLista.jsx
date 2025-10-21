@@ -1,22 +1,20 @@
 import { API_URL } from "../config";
 
-export default function ClientesLista({ items, onDeleted }) {
+export default function ClientesLista({ items = [], onDeleted }) {
   const borrar = async (id) => {
     const ok = confirm("¿Seguro que querés eliminar este cliente?");
     if (!ok) return;
     try {
       const r = await fetch(`${API_URL}/api/clientes/${id}`, { method: "DELETE" });
-      if (!r.ok) {
-        const d = await r.json().catch(() => ({}));
-        throw new Error(d.message || "No se pudo eliminar");
-      }
-      onDeleted?.(id); // 👈 actualiza estado en App al instante
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.message || "No se pudo eliminar");
+      onDeleted?.(id);
     } catch (e) {
       alert(e.message || "Error al eliminar");
     }
   };
 
-  if (!items?.length) return <p>Sin clientes cargados.</p>;
+  if (!items.length) return <p>Sin clientes cargados.</p>;
 
   return (
     <table style={{ width:"100%", borderCollapse:"collapse" }}>

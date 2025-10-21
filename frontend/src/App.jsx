@@ -9,7 +9,7 @@ export default function App() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
 
-  // Saludo del backend
+  // ping
   useEffect(() => {
     fetch(`${API_URL}/api/ping`, { cache: "no-store" })
       .then(r => r.json())
@@ -17,7 +17,7 @@ export default function App() {
       .catch(() => setApiMsg("Backend aún no disponible"));
   }, []);
 
-  // Cargar lista inicial (y podés reutilizar cuando quieras)
+  // carga inicial
   const loadClientes = async () => {
     try {
       setCargando(true);
@@ -31,18 +31,17 @@ export default function App() {
       setCargando(false);
     }
   };
+  useEffect(() => { loadClientes(); }, []);
 
-  useEffect(() => {
-    loadClientes();
-  }, []);
-
-  // 👉 se llama cuando el form crea un cliente OK (actualización optimista)
+  // ✅ actualización optimista al CREAR
   const handleCreated = (nuevo) => {
+    console.log("[onCreated] llegó del backend:", nuevo);
     setClientes(prev => [nuevo, ...prev]);
   };
 
-  // 👉 se llama cuando la lista elimina un cliente OK (actualización optimista)
+  // ✅ actualización optimista al ELIMINAR
   const handleDeleted = (id) => {
+    console.log("[onDeleted] id:", id);
     setClientes(prev => prev.filter(c => c.id !== id));
   };
 
@@ -58,8 +57,9 @@ export default function App() {
       <ClienteForm onCreated={handleCreated} />
 
       <hr />
-      <h2>Clientes</h2>
+      <h2>Clientes <small style={{color:"#777"}}>({clientes.length})</small></h2>
       <button onClick={loadClientes} style={{ marginBottom: 10 }}>Recargar</button>
+
       {cargando && <p>Cargando clientes…</p>}
       {error && <p style={{ color:"red" }}>{error}</p>}
       {!cargando && !error && (

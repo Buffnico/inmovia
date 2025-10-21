@@ -14,9 +14,11 @@ export default function ClienteForm({ onCreated }) {
   const onSubmit = async (e) => {
     e.preventDefault();
     setMsg("");
+
     if (!form.nombre.trim() || !form.apellido.trim() || !/^\d{7,10}$/.test(form.dni)) {
       return setMsg("Complete nombre, apellido y DNI (7–10 dígitos).");
     }
+
     try {
       setEnviando(true);
       const r = await fetch(`${API_URL}/api/clientes`, {
@@ -26,9 +28,12 @@ export default function ClienteForm({ onCreated }) {
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d?.message || "Error al guardar");
+      console.log("[POST /api/clientes] respuesta:", d);
       setMsg(`Cliente #${d.id} guardado ✅`);
       setForm({ nombre:"", apellido:"", dni:"", email:"", telefono:"" });
-      onCreated?.(d); // 👈 agrega al estado en App al instante
+
+      // 🔔 Notificar al padre para actualización inmediata
+      onCreated?.(d);
     } catch (e2) {
       setMsg(e2.message);
     } finally {
