@@ -26,10 +26,14 @@ app.post("/api/clientes", (req, res) => {
   if (!nombre || !apellido || !dni) {
     return res.status(400).json({ ok: false, message: "Faltan campos obligatorios" });
   }
-  if (!/^\d{7,10}$/.test(String(dni))) {
+  const dniStr = String(dni).trim();
+  if (!/^\d{7,10}$/.test(dniStr)) {
     return res.status(400).json({ ok: false, message: "DNI inválido (7 a 10 dígitos)" });
   }
-  const nuevo = { id: nextId++, nombre, apellido, dni: String(dni), email: email || "", telefono: telefono || "" };
+  if (clientes.some((cliente) => cliente.dni === dniStr)) {
+    return res.status(409).json({ ok: false, message: "Ya existe un cliente con ese DNI" });
+  }
+  const nuevo = { id: nextId++, nombre, apellido, dni: dniStr, email: email || "", telefono: telefono || "" };
   clientes.push(nuevo);
   return res.status(201).json(nuevo);
 });
