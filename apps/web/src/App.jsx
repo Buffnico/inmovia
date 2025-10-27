@@ -1,3 +1,4 @@
+// 🔁 Test guardado desde Codex ✅
 import { Routes, Route, Link } from "react-router-dom";
 import Layout from "./components/Layout";
 import PingBanner from "./components/PingBanner";
