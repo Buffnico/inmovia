@@ -1,0 +1,16 @@
+[
+  {
+    "dni": "38654987",
+    "nombre": "Daniel",
+    "apellido": "Elgo",
+    "telefono": "1145367289",
+    "email": "Dani@gmail.com"
+  },
+  {
+    "dni": "12345678",
+    "nombre": "Nico",
+    "apellido": "Lopez",
+    "telefono": "116688552244",
+    "email": "lop@gmail.com"
+  }
+]

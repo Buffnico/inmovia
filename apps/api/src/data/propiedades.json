@@ -1,0 +1,18 @@
+[
+  {
+    "id": "1",
+    "tipo": "Local",
+    "direccion": "capi 123",
+    "localidad": "banfield",
+    "ambientes": 1,
+    "precioUSD": 120
+  },
+  {
+    "id": "2",
+    "tipo": "Departamento",
+    "direccion": "cap223",
+    "localidad": "banfield",
+    "ambientes": 2,
+    "precioUSD": 120000
+  }
+]
