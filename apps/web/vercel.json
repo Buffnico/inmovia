@@ -2,6 +2,14 @@
     "version":  2,
     "rewrites":  [
                      {
+                         "destination":  "https://inmovia-api.onrender.com/api/ping",
+                         "source":  "/api"
+                     },
+                     {
+                         "destination":  "https://inmovia-api.onrender.com/api/ping",
+                         "source":  "/api/"
+                     },
+                     {
                          "destination":  "https://inmovia-api.onrender.com/api/",
                          "source":  "/api/(.*)"
                      },
