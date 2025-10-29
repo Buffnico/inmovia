@@ -1,0 +1,10 @@
+﻿services:
+  - type: web
+    name: inmovia-api
+    env: node
+    rootDir: apps/api
+    plan: free
+    buildCommand: npm install
+    startCommand: node src/server.js
+    healthCheckPath: /api/ping
+    autoDeploy: true
