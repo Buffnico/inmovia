@@ -1,7 +1,13 @@
-﻿{
-  "version": 2,
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "https://TU-API.render.com/api/$1" },
-    { "source": "/storage/(.*)", "destination": "https://TU-API.render.com/storage/$1" }
-  ]
+{
+    "version":  2,
+    "rewrites":  [
+                     {
+                         "destination":  "https://inmovia-api.onrender.com/api/",
+                         "source":  "/api/(.*)"
+                     },
+                     {
+                         "destination":  "https://inmovia-api.onrender.com/storage/",
+                         "source":  "/storage/(.*)"
+                     }
+                 ]
 }
