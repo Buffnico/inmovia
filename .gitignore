@@ -1,0 +1,23 @@
+﻿# Node
+node_modules/
+npm-debug.log*
+pnpm-lock.yaml
+yarn.lock
+
+# Vite/Web
+dist/
+.vite/
+
+# Vercel
+.vercel/
+
+# VSCode
+.vscode/
+
+# Entornos
+.env
+.env.*
+!.env.example
+
+# Backend storage (modelos/salidas locales)
+apps/api/storage/

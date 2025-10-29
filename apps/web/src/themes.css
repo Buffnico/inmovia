@@ -1,0 +1,75 @@
+/* Tema por defecto: usamos el de index.css. Definimos variantes acá. */
+
+/* — INMOVIA (oscuro azul) — */
+:root[data-theme='inmovia'] {
+  --bg: #0f1222;
+  --panel: #171a2e;
+  --text: #e8eaf6;
+  --muted: #a6accd;
+  --brand: #4aa8ff;
+  --brand-2: #7cc7ff;
+  --ok: #36d399;
+  --warn: #fbbf24;
+  --err: #f87171;
+}
+
+/* — DARK NEÓN — */
+:root[data-theme='dark-neon'] {
+  --bg: #0b0b12;
+  --panel: #141428;
+  --text: #eeebff;
+  --muted: #b9b2ff;
+  --brand: #9b5cff;   /* violeta */
+  --brand-2: #00e5ff; /* cian neón */
+  --ok: #00f5a0;
+  --warn: #ffc857;
+  --err: #ff6b6b;
+}
+
+/* — VERDE INMOBILIARIO — */
+:root[data-theme='green'] {
+  --bg: #0e1a16;
+  --panel: #13221c;
+  --text: #e8fff7;
+  --muted: #9bd3c0;
+  --brand: #00c28a;
+  --brand-2: #4bd8a2;
+  --ok: #32e6b2;
+  --warn: #ffd166;
+  --err: #ff7b7b;
+}
+
+/* — CLARO — */
+:root[data-theme='light'] {
+  --bg: #f6f9ff;
+  --panel: #ffffff;
+  --text: #0b1225;
+  --muted: #4b5565;
+  --brand: #2f7df6;
+  --brand-2: #66aaff;
+  --ok: #16a34a;
+  --warn: #b45309;
+  --err: #b91c1c;
+}
+
+/* Overrides para modo CLARO (para que no se vea "lavado") */
+:root[data-theme='light'] body {
+  background: var(--bg);
+  color: var(--text);
+}
+:root[data-theme='light'] .card {
+  background: #ffffff;
+  border: 1px solid rgba(0,0,0,0.08);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.07);
+}
+:root[data-theme='light'] input,
+:root[data-theme='light'] select {
+  background: #ffffff;
+  color: var(--text);
+  border: 1px solid rgba(0,0,0,0.12);
+}
+:root[data-theme='light'] .badge {
+  background: rgba(0,0,0,0.04);
+  border: 1px solid rgba(0,0,0,0.12);
+  color: var(--text);
+}

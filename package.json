@@ -1,0 +1,12 @@
+{
+  "name": "inmovia-office",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": ["apps/*"],
+  "scripts": {
+    "dev:api": "npm run dev --workspace @inmovia/api",
+    "dev:web": "npm run dev --workspace @inmovia/web",
+    "build": "npm run build --workspaces",
+    "test": "npm test --workspaces"
+  }
+}
