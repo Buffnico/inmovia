@@ -1,6 +1,6 @@
 ﻿{
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "https://inmovia-api.onrender.com/api/\" },
-    { "source": "/storage/(.*)", "destination": "https://inmovia-api.onrender.com/storage/\" }
+    { "source": "/api/(.*)", "destination": "https://inmovia-api.onrender.com/api/$1" },
+    { "source": "/storage/(.*)", "destination": "https://inmovia-api.onrender.com/storage/$1" }
   ]
 }
