@@ -15,12 +15,14 @@ app.use(cors());
 app.use(express.json());
 
 // ===== Paths de almacenamiento =====
-const __filename = fileURLToPath(import.meta.url);
+const __filename = fileURLToPath(import.meta.url); 
+const STORAGE_ROOT = process.env.STORAGE_ROOT || path.resolve(__dirname, '../../storage/portadas');
 const __dirname = path.dirname(__filename);
-const STORAGE_ROOT = path.resolve(__dirname, '../../storage/portadas');
+
 const MODELOS_DIR  = path.join(STORAGE_ROOT, 'modelos');
 const SALIDAS_DIR  = path.join(STORAGE_ROOT, 'salidas');
 const MODELOS_JSON = path.join(STORAGE_ROOT, 'modelos.json');
+
 
 fse.ensureDirSync(MODELOS_DIR);
 fse.ensureDirSync(SALIDAS_DIR);
