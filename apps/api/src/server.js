@@ -80,7 +80,7 @@ function saveModelos(arr) {
 }
 
 // ---------------------------------------------------------------------
-// Helpers imagen
+// Helpers imagen / slots
 // ---------------------------------------------------------------------
 const FORMATS = {
   square:   { w: 1080, h: 1080 },
@@ -100,31 +100,55 @@ async function fetchImageBuffer(url) {
   }
 }
 
-function overlaySVG({ w, h, titulo, precio, ambientes, superficie }) {
+function clamp01(v) { return Math.min(1, Math.max(0, Number(v))) }
+
+function validateAndNormalizeSlots(slots) {
+  if (!Array.isArray(slots)) return []
+  const ALLOWED_TEXT_KEYS = new Set(['direccion','precio','ambientes','superficie','custom'])
+  return slots.map((s, idx) => {
+    const type = (s?.type === 'image') ? 'image' : 'text'
+    const x = clamp01(s?.x), y = clamp01(s?.y), w = clamp01(s?.w), h = clamp01(s?.h)
+    const key = type === 'text'
+      ? (ALLOWED_TEXT_KEYS.has(s?.key) ? s.key : 'custom')
+      : (typeof s?.key === 'string' ? s.key : '')
+    const style = {
+      color: typeof s?.style?.color === 'string' ? s.style.color : '#ffffff',
+      weight: Number(s?.style?.weight) || 700,
+      size: Number(s?.style?.size) || 0.7, // factor sobre alto del slot
+      align: ['left','center','right'].includes(s?.style?.align) ? s.style.align : 'left',
+    }
+    const imgIndex = Number.isInteger(s?.imgIndex) ? s.imgIndex : idx // por defecto, orden
+    return { id: s?.id || `slot-${idx}`, type, key, x, y, w, h, style, imgIndex }
+  })
+}
+
+function svgForTextSlots(textSlots, data, fmt) {
   const safe = (s) => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;')
-  return Buffer.from(
-`<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#22d3ee"/>
-      <stop offset="100%" stop-color="#60a5fa"/>
-    </linearGradient>
-    <filter id="shadow"><feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity="0.35"/></filter>
-  </defs>
+  const el = []
+  for (const s of textSlots) {
+    let value = ''
+    if (s.key === 'direccion')   value = data.direccion || ''
+    else if (s.key === 'precio') value = data.precio || ''
+    else if (s.key === 'ambientes') value = data.ambientes ? `${data.ambientes} amb` : ''
+    else if (s.key === 'superficie') value = data.superficie ? `${data.superficie} m²` : ''
+    else value = data[s.key] || '' // 'custom' u otros
 
-  <rect x="0" y="0" width="${w}" height="${Math.round(h*0.12)}" fill="url(#g)"/>
-  <text x="24" y="${Math.round(h*0.08)}" font-family="Inter,Segoe UI,Arial" font-size="${Math.round(h*0.06)}" font-weight="800" fill="#0a0a0a">INMOVIA</text>
+    const xPx = Math.round(s.x * fmt.w)
+    const yPx = Math.round(s.y * fmt.h)
+    const wPx = Math.round(s.w * fmt.w)
+    const hPx = Math.round(s.h * fmt.h)
+    const fontSize = Math.max(12, Math.round(hPx * (s.style?.size || 0.7)))
+    let anchor = 'start'
+    let xDraw = xPx + 4
+    if (s.style?.align === 'center') { anchor = 'middle'; xDraw = xPx + Math.round(wPx/2) }
+    if (s.style?.align === 'right')  { anchor = 'end';    xDraw = xPx + wPx - 4 }
 
-  <rect x="24" y="${h - Math.round(h*0.26)}" rx="18" width="${w-48}" height="${Math.round(h*0.22)}" fill="rgba(0,0,0,0.45)" filter="url(#shadow)"/>
-  <text x="48" y="${h - Math.round(h*0.26) + 60}" font-family="Inter,Segoe UI,Arial" font-size="${Math.round(h*0.05)}" font-weight="700" fill="#fff">${safe(titulo)}</text>
-  <text x="48" y="${h - Math.round(h*0.26) + 110}" font-family="Inter,Segoe UI,Arial" font-size="${Math.round(h*0.04)}" font-weight="600" fill="#22d3ee">${safe(precio || '')}</text>
-
-  <g font-family="Inter,Segoe UI,Arial" font-size="${Math.round(h*0.035)}" fill="#fff">
-    <text x="48" y="${h - Math.round(h*0.26) + 155}">${safe(ambientes ? ambientes + ' amb' : '')}</text>
-    <text x="220" y="${h - Math.round(h*0.26) + 155}">${safe(superficie ? superficie + ' m²' : '')}</text>
-  </g>
-</svg>`
-  )
+    el.push(
+      `<text x="${xDraw}" y="${yPx + Math.round(hPx*0.8)}" text-anchor="${anchor}" font-family="Inter,Segoe UI,Arial" font-size="${fontSize}" font-weight="${s.style?.weight || 700}" fill="${s.style?.color || '#fff'}">${safe(value)}</text>`
+    )
+  }
+  const svg = `<svg width="${fmt.w}" height="${fmt.h}" viewBox="0 0 ${fmt.w} ${fmt.h}" xmlns="http://www.w3.org/2000/svg">${el.join('\n')}</svg>`
+  return Buffer.from(svg)
 }
 
 // ---------------------------------------------------------------------
@@ -182,7 +206,17 @@ app.use('/storage', express.static(PORTADAS.ROOT, {
 }))
 
 // ---------------------------------------------------------------------
-// Rutas
+// Rutas informativas raíz
+// ---------------------------------------------------------------------
+app.get('/', (req, res) => {
+  res.json({ ok:true, info:'API Inmovia', try:['/api/ping','/api/portadas/modelos'] })
+})
+app.get(['/api','/api/'], (req, res) => {
+  res.json({ ok:true, info:'API Inmovia', try:['/api/ping','/api/portadas/modelos'] })
+})
+
+// ---------------------------------------------------------------------
+// Rutas Portadas / Modelos
 // ---------------------------------------------------------------------
 app.get('/api/ping', (req, res) => {
   res.json({
@@ -199,8 +233,39 @@ app.get('/api/portadas/modelos', (req, res) => {
     nombre: m.nombre,
     descripcion: m.descripcion || '',
     url: m.url,
+    hasSlots: Array.isArray(m.slots) && m.slots.length > 0
   }))
   res.json({ modelos })
+})
+
+app.get('/api/portadas/modelos/:id', (req, res) => {
+  const modelos = loadModelos()
+  const m = modelos.find(x => x.id === req.params.id)
+  if (!m) return res.status(404).json({ ok:false, error:'No existe' })
+  res.json({ ok:true, modelo: m })
+})
+
+app.get('/api/portadas/modelos/:id/slots', (req, res) => {
+  const modelos = loadModelos()
+  const m = modelos.find(x => x.id === req.params.id)
+  if (!m) return res.status(404).json({ ok:false, error:'No existe' })
+  res.json({ ok:true, slots: m.slots || [] })
+})
+
+app.post('/api/portadas/modelos/:id/slots', async (req, res) => {
+  try {
+    const input = Array.isArray(req.body?.slots) ? req.body.slots : []
+    const slots = validateAndNormalizeSlots(input)
+    const modelos = loadModelos()
+    const idx = modelos.findIndex(x => x.id === req.params.id)
+    if (idx === -1) return res.status(404).json({ ok:false, error:'No existe' })
+    modelos[idx].slots = slots
+    saveModelos(modelos)
+    res.json({ ok:true, slots })
+  } catch (e) {
+    console.error('[slots save]', e)
+    res.status(500).json({ ok:false, error: e.message })
+  }
 })
 
 app.post('/api/portadas/modelos/upload', upload.single('archivo'), async (req, res) => {
@@ -224,12 +289,13 @@ app.post('/api/portadas/modelos/upload', upload.single('archivo'), async (req, r
       descripcion: descripcion.trim(),
       url: `/storage/${DIRS.MODELOS}/${filename}`,
       file: filename,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      slots: [] // nuevo
     }
     modelos.push(record)
     saveModelos(modelos)
 
-    res.json({ ok:true, modelo: { id: record.id, nombre: record.nombre, descripcion: record.descripcion, url: record.url } })
+    res.json({ ok:true, modelo: { id: record.id, nombre: record.nombre, descripcion: record.descripcion, url: record.url, hasSlots:false } })
   } catch (e) {
     console.error('[upload modelo] ', e)
     res.status(500).json({ ok:false, error: e.message })
@@ -277,38 +343,76 @@ app.post('/api/portadas/preview', (req, res) => {
   }
 })
 
-// Instanciar — compone foto principal + overlay SVG y guarda PNG
+// Instanciar — usa slots si existen; si no, overlay simple
 app.post('/api/portadas/instanciar', async (req, res) => {
   try {
-    const { modeloId='', formato='square', direccion='', precio='', ambientes='', superficie='', fotos=[], principalIndex=0 } = req.body || {}
+    const { modeloId='', formato='square', direccion='', precio='', ambientes='', superficie='', fotos=[], principalIndex=0, custom={} } = req.body || {}
     const fmt = FORMATS[formato] || FORMATS.square
-    const title = direccion || 'Propiedad'
+    const data = { direccion, precio, ambientes, superficie, ...custom }
 
     // base: imagen principal o color liso
     let base
     const principal = Array.isArray(fotos) && fotos.length ? fotos[Math.min(Math.max(0, parseInt(principalIndex || 0, 10)), fotos.length-1)] : null
     if (principal) {
       const buf = await fetchImageBuffer(principal)
-      if (buf) {
-        base = await sharp(buf).resize(fmt.w, fmt.h, { fit:'cover' }).toBuffer()
-      }
+      if (buf) base = await sharp(buf).resize(fmt.w, fmt.h, { fit:'cover' }).toBuffer()
     }
     if (!base) {
       base = await sharp({ create: { width: fmt.w, height: fmt.h, channels: 3, background: '#0f172a' } }).png().toBuffer()
     }
 
-    const overlay = overlaySVG({ w: fmt.w, h: fmt.h, titulo: title, precio, ambientes, superficie })
+    // Si el modelo tiene slots, aplicarlos
+    const modelos = loadModelos()
+    const modelo = modelos.find(m => m.id === modeloId)
+    const composites = []
+    let textSlots = []
+
+    if (modelo && Array.isArray(modelo.slots) && modelo.slots.length) {
+      const slots = validateAndNormalizeSlots(modelo.slots)
+      // Imagenes
+      let imgCursor = 0
+      for (const s of slots) {
+        if (s.type === 'image') {
+          const idx = Number.isInteger(s.imgIndex) ? s.imgIndex : imgCursor++
+          const src = fotos[idx]
+          if (!src) continue
+          const buf = await fetchImageBuffer(src)
+          if (!buf) continue
+          const wPx = Math.round(s.w * fmt.w)
+          const hPx = Math.round(s.h * fmt.h)
+          const xPx = Math.round(s.x * fmt.w)
+          const yPx = Math.round(s.y * fmt.h)
+          const fitted = await sharp(buf).resize(wPx, hPx, { fit:'cover' }).toBuffer()
+          composites.push({ input: fitted, left: xPx, top: yPx })
+        } else {
+          textSlots.push(s)
+        }
+      }
+      // Textos en un único SVG overlay
+      if (textSlots.length) {
+        const overlay = svgForTextSlots(textSlots, data, fmt)
+        composites.push({ input: overlay })
+      }
+    } else {
+      // Modo simple (sin slots): solo un overlay básico con datos clave
+      const safe = (s) => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      const svg = Buffer.from(
+        `<svg width="${fmt.w}" height="${fmt.h}" viewBox="0 0 ${fmt.w} ${fmt.h}" xmlns="http://www.w3.org/2000/svg">
+          <rect x="0" y="${fmt.h - Math.round(fmt.h*0.22)}" width="${fmt.w}" height="${Math.round(fmt.h*0.22)}" fill="rgba(0,0,0,0.45)"/>
+          <text x="32" y="${fmt.h - Math.round(fmt.h*0.22) + 60}" font-family="Inter,Segoe UI,Arial" font-size="${Math.round(fmt.h*0.05)}" font-weight="700" fill="#fff">${safe(direccion || 'Propiedad')}</text>
+          <text x="32" y="${fmt.h - Math.round(fmt.h*0.22) + 110}" font-family="Inter,Segoe UI,Arial" font-size="${Math.round(fmt.h*0.04)}" font-weight="600" fill="#22d3ee">${safe(precio || '')}</text>
+        </svg>`
+      )
+      composites.push({ input: svg })
+    }
 
     const outName = `portada_${Date.now()}.png`
     const outPath = path.join(PORTADAS.SALIDAS, outName)
 
-    await sharp(base)
-      .composite([{ input: overlay }])
-      .png()
-      .toFile(outPath)
+    await sharp(base).composite(composites).png().toFile(outPath)
 
     const url = `/storage/${DIRS.SALIDAS}/${outName}`
-    res.json({ ok:true, url, formato, modeloId })
+    res.json({ ok:true, url, formato, modeloId, usedSlots: !!(modelo && modelo.slots && modelo.slots.length) })
   } catch (e) {
     console.error('[instanciar] ', e)
     res.status(500).json({ ok:false, error: e.message })
