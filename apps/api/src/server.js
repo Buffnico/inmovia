@@ -1,4 +1,4 @@
-﻿// ESM server.js — listo para Node 18+ con "type":"module" en package.json
+﻿// ESM server.js — Node 18+ con "type":"module" en package.json
 
 import express from 'express'
 import cors from 'cors'
@@ -20,7 +20,8 @@ const __dirname = path.dirname(__filename)
 // ---------------------------------------------------------------------
 const PORT = process.env.PORT || 3001
 
-// Storage ROOT (persistente si montás disk en /data; local en /storage; fallback /tmp)
+// Storage ROOT (persistente si montás disk; en free usar /tmp)
+// Local por defecto: apps/api/storage/portadas
 const DEFAULT_STORAGE = path.resolve(__dirname, '../../storage/portadas')
 let STORAGE_ROOT = process.env.STORAGE_ROOT || DEFAULT_STORAGE
 
@@ -133,11 +134,46 @@ const app = express()
 app.use(cors())
 app.use(express.json({ limit: '10mb' }))
 
-// Multer en memoria (control total del nombre y carpeta)
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } })
+// Multer en memoria con filtro de imágenes
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 15 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ok = ['image/png','image/jpeg','image/webp'].includes(file.mimetype)
+    cb(ok ? null : new Error('Tipo de archivo no permitido'), ok)
+  }
+})
 
 // Inicializar storage ANTES de montar /storage
 const PORTADAS = await initStorage()
+
+// --- Limpieza automática de archivos viejos en /tmp (GRATIS) ---
+const MAX_AGE_HOURS = Number(process.env.CLEANUP_MAX_AGE_HOURS || 24)
+
+async function cleanupOldFiles(root, hours) {
+  const cutoff = Date.now() - hours * 3600 * 1000
+  for (const sub of [DIRS.MODELOS, DIRS.SALIDAS]) {
+    const dir = path.join(root, sub)
+    try {
+      const files = await fsp.readdir(dir)
+      await Promise.all(files.map(async (f) => {
+        try {
+          const fp = path.join(dir, f)
+          const st = await fsp.stat(fp)
+          if (st.isFile() && st.mtimeMs < cutoff) {
+            await fsp.unlink(fp)
+          }
+        } catch {}
+      }))
+    } catch {}
+  }
+  console.log(`[cleanup] done. root=${root} maxAge=${hours}h`)
+}
+
+// corre una vez al inicio y luego cada 30 min
+await cleanupOldFiles(PORTADAS.ROOT, MAX_AGE_HOURS)
+setInterval(() => cleanupOldFiles(PORTADAS.ROOT, MAX_AGE_HOURS), 30 * 60 * 1000)
+// --- FIN limpieza ---
 
 // Static de archivos generados y modelos
 app.use('/storage', express.static(PORTADAS.ROOT, {
@@ -153,7 +189,7 @@ app.get('/api/ping', (req, res) => {
     ok: true,
     ts: new Date().toISOString(),
     storageRoot: PORTADAS.ROOT,
-    dirs: PORTADAS,
+    cleanupMaxAgeHours: MAX_AGE_HOURS,
   })
 })
 
