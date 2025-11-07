@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<title>OpenCV Test</title>
+<pre id="log">Cargando OpenCV…</pre>
+<script>
+  window.Module = {
+    locateFile: (p) => `/vendor/opencv/${p}`,
+    onRuntimeInitialized() {
+      const cv = window.cv;
+      document.getElementById('log').textContent =
+        cv ? `OK: OpenCV cargado. Version: ${cv.version ? (cv.version.major+'.'+cv.version.minor+'.'+cv.version.revision) : 'desconocida'}`
+           : 'ERROR: cv no está definido';
+    }
+  };
+</script>
+<script src="/vendor/opencv/opencv.js"></script>
+</html>

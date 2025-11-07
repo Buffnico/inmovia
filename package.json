@@ -1,12 +1,16 @@
 {
-  "name": "inmovia-office",
-  "version": "1.0.0",
+  "name": "inmovia-monorepo",
   "private": true,
-  "workspaces": ["apps/*"],
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
   "scripts": {
-    "dev:api": "npm run dev --workspace @inmovia/api",
-    "dev:web": "npm run dev --workspace @inmovia/web",
-    "build": "npm run build --workspaces",
-    "test": "npm test --workspaces"
+    "dev:web": "npm --workspace apps/web run dev",
+    "build:web": "npm --workspace apps/web run build",
+    "dev:api": "npm --workspace apps/api run dev"
+  },
+  "dependencies": {
+    "pdf-lib": "^1.17.1"
   }
 }

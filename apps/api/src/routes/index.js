@@ -1,12 +1,13 @@
 ﻿import express from "express";
 import portadas from "./portadas.js";
 
+const eduRouter = require("./routes/edu");
 const router = express.Router();
 
 router.get("/", (req, res) => res.json({ ok: true, message: "API Root OK" }));
 
 router.use("/portadas", portadas);
-
+app.use("/api/edu", eduRouter);
 // Namespaces (placeholders)
 router.use("/auth", (req, res) => res.json({ ok: true, module: "auth" }));
 router.use("/contacts", (req, res) => res.json({ ok: true, module: "contacts" }));

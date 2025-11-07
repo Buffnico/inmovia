@@ -1,25 +1,32 @@
-import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../auth.jsx'
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../store/auth";
 
-export default function Login() {
-  const { setRole } = useAuth();
-  const nav = useNavigate();
+export default function Login(){
+  const [email,setEmail]=useState("owner@inmovia.com");
+  const [pass,setPass]=useState("123456");
+  const [err,setErr]=useState("");
+  const login = useAuth(s=>s.login);
+  const navigate = useNavigate();
 
-  const loginAs = (r) => {
-    setRole(r);
-    nav('/app', { replace:true });
-  }
+  const onSubmit = async (e)=>{
+    e.preventDefault();
+    const ok = await login(email,pass);
+    if(!ok) setErr("Credenciales inválidas");
+    else navigate("/", {replace:true});
+  };
 
   return (
-    <section className="card" style={{ maxWidth: 520, margin:'24px auto' }}>
-      <h2>Iniciar sesión</h2>
-      <p className="muted">Seleccioná un rol para visualizar el panel. (Simulación)</p>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-        <button className="btn" onClick={()=> loginAs('owner')}>Entrar como Owner</button>
-        <button className="btn" onClick={()=> loginAs('agent')}>Entrar como Agente</button>
-        <button className="btn" onClick={()=> loginAs('admin')}>Entrar como Admin</button>
-        <button className="btn" onClick={()=> loginAs('guest')}>Continuar como invitado</button>
+    <div className="login-hero">
+      <div className="card login-card">
+        <div className="login-title">Inmovia</div>
+        <form onSubmit={onSubmit} className="row" style={{flexDirection:"column", gap:12}}>
+          <input className="input" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)}/>
+          <input className="input" placeholder="Contraseña" type="password" value={pass} onChange={e=>setPass(e.target.value)}/>
+          {err && <div className="muted" style={{color:"#ff9b9b"}}>{err}</div>}
+          <button className="btn btn-lg" type="submit">Ingresar</button>
+        </form>
       </div>
-    </section>
-  )
+    </div>
+  );
 }
