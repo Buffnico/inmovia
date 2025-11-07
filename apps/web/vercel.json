@@ -1,21 +1,8 @@
 {
-    "version":  2,
-    "rewrites":  [
-                     {
-                         "destination":  "https://inmovia-api.onrender.com/api/ping",
-                         "source":  "/api"
-                     },
-                     {
-                         "destination":  "https://inmovia-api.onrender.com/api/ping",
-                         "source":  "/api/"
-                     },
-                     {
-                         "destination":  "https://inmovia-api.onrender.com/api/",
-                         "source":  "/api/(.*)"
-                     },
-                     {
-                         "destination":  "https://inmovia-api.onrender.com/storage/",
-                         "source":  "/storage/(.*)"
-                     }
-                 ]
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://TU-API.onrender.com/api/$1"
+    }
+  ]
 }
