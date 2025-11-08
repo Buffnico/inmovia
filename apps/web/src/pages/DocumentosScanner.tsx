@@ -1,32 +1,36 @@
-// apps/web/src/pages/DocumentosScanner.tsx
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import ScannerModal from "../scanner/components/ScannerModal";
 
 export default function DocumentosScanner() {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(true);
-  useEffect(() => setIsOpen(true), []);
+
+  useEffect(() => {
+    setIsOpen(true);
+  }, []);
 
   return (
-    <div className="container app-main">
+    <div className="app-main">
       <div className="glass-panel">
-        <div className="dash-header" style={{ alignItems: "center" }}>
-          <h1 className="brand-title" style={{ marginBottom: 0 }}>Escáner</h1>
-          <p className="brand-sub">Procesamiento local. Tus archivos no se suben hasta confirmar.</p>
+        <div className="dash-header" style={{ justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <h1 className="brand-title">Escáner</h1>
+            <p className="brand-sub">Ventana flotante sobre Documentos.</p>
+          </div>
+          <button className="btn" onClick={() => navigate("/documentos")}>Volver a Documentos</button>
         </div>
 
-        {!isOpen && (
-          <button className="btn btn-primary" onClick={() => setIsOpen(true)} style={{ marginBottom: 16 }}>
-            Abrir escáner
-          </button>
-        )}
-
-        {/* Usa la clase que ya tenés en tu CSS */}
-        <div className="scanner-page">
-          <div className="scanner-stage">
-            <ScannerModal isOpen={isOpen} onClose={() => setIsOpen(false)} />
-          </div>
+        <div className="panel">
+          <p className="muted">El escáner se abre en modo ventana. Si lo cerrás, permanecés en esta página.</p>
         </div>
       </div>
+
+      <ScannerModal
+        isOpen={isOpen}
+        onClose={() => setIsOpen(false)}
+        initialFiles={[]}
+      />
     </div>
   );
 }

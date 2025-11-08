@@ -1,71 +1,130 @@
-// apps/web/src/pages/Documentos.tsx  (REEMPLAZAR COMPLETO)
-import React, { useEffect, useState } from "react";
-import { useLocation } from "react-router-dom";
+import React, { useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import ScannerModal from "../scanner/components/ScannerModal";
 
 export default function Documentos() {
-  const { pathname } = useLocation(); // con HashRouter será "/documentos" o "/documentos/escaner"
-  const [scanOpen, setScanOpen] = useState(false);
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    // si estamos en /documentos/escaner, abrir modal
-    if (pathname.endsWith("/documentos/escaner")) {
-      setScanOpen(true);
-    }
-  }, [pathname]);
+  // Estado del escáner
+  const [isScanOpen, setIsScanOpen] = useState(false);
+  const [initialFiles, setInitialFiles] = useState<File[]>([]);
+
+  // File input para “Cargar documento”
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  function openScanEmpty() {
+    setInitialFiles([]);
+    setIsScanOpen(true);
+  }
+
+  function onPickFiles() {
+    fileRef.current?.click();
+  }
+
+  function onFilesChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const fs = e.target.files;
+    if (!fs || fs.length === 0) return;
+    // Pasamos estas imágenes al escáner
+    setInitialFiles(Array.from(fs));
+    setIsScanOpen(true);
+    // limpiar el input para poder volver a elegir lo mismo si quiero
+    e.currentTarget.value = "";
+  }
 
   return (
-    <div className="container app-main">
+    <div className="app-main">
       <div className="glass-panel">
         <div className="dash-header">
           <h1 className="brand-title">Documentos</h1>
-          <p className="brand-sub">Gestioná y generá documentos de tu oficina.</p>
+          <p className="brand-sub">Cargá, escaneá y organizá tus documentos.</p>
         </div>
 
-        <section className="cards-row">
-          <a className="stat-card" href="#/documentos/nuevo">
-            <div className="stat-head">Crear nuevo documento</div>
-            <div className="stat-sub">Reservas, refuerzos, recibos, portadas, contratos…</div>
-          </a>
-
-          <a className="stat-card" href="#/documentos/cargar">
-            <div className="stat-head">Cargar documento</div>
-            <div className="stat-sub">Subí PDF/JPG/PNG desde tu PC.</div>
-          </a>
-
-          <button
-            type="button"
-            className="stat-card"
-            style={{ textAlign: "left" }}
-            onClick={() => setScanOpen(true)}
-          >
-            <div className="stat-head">Escanear</div>
-            <div className="stat-sub">Recorte, mejoras, multipágina y PDF/JPG.</div>
-          </button>
-
-          <a className="stat-card" href="#/documentos/portada">
-            <div className="stat-head">Crear imagen para redes</div>
-            <div className="stat-sub">Plantillas con datos + fotos.</div>
-          </a>
-        </section>
-      </div>
-
-      {/* ===== Modal flotante “vidrioso” sobre Documentos ===== */}
-      {scanOpen && (
-        <>
-          <div className="scanner-overlay" onClick={() => setScanOpen(false)} />
-          <div className="scanner-float">
-            <div className="scanner-card" onClick={(e) => e.stopPropagation()}>
-              {/* tu UI de escáner, envuelta con clases de tema azul */}
-              <div className="scanner-page">
-                <div className="scanner-stage">
-                  <ScannerModal isOpen={true} onClose={() => setScanOpen(false)} />
-                </div>
-              </div>
+        {/* Acciones principales */}
+        <div className="cards-row" style={{ marginBottom: 16 }}>
+          {/* Crear documento (placeholder) */}
+          <div className="stat-card">
+            <div className="stat-head">Nuevo</div>
+            <div className="stat-value" style={{ fontSize: 24 }}>Crear documento</div>
+            <p className="muted" style={{ marginTop: 6 }}>
+              Usá plantillas de la oficina (próximamente).
+            </p>
+            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+              <button className="btn btn-primary" onClick={() => alert("Próximamente: generador con plantillas")}>
+                Crear
+              </button>
             </div>
           </div>
-        </>
-      )}
+
+          {/* Cargar documento: abre file picker y manda al escáner */}
+          <div className="stat-card">
+            <div className="stat-head">Importar</div>
+            <div className="stat-value" style={{ fontSize: 24 }}>Cargar documento</div>
+            <p className="muted" style={{ marginTop: 6 }}>
+              Sube imágenes (JPG/PNG) y optimizalas con el escáner.
+            </p>
+            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+              <button className="btn" onClick={onPickFiles}>Elegir imágenes</button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={onFilesChange}
+                style={{ display: "none" }}
+              />
+            </div>
+          </div>
+
+          {/* Escanear: abre modal vacío (luego agregás imágenes desde el propio modal) */}
+          <div className="stat-card">
+            <div className="stat-head">Escáner</div>
+            <div className="stat-value" style={{ fontSize: 24 }}>Escanear</div>
+            <p className="muted" style={{ marginTop: 6 }}>
+              Abre el escáner en una ventana flotante.
+            </p>
+            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+              <button className="btn btn-primary" onClick={openScanEmpty}>Abrir escáner</button>
+              <Link className="btn" to="/documentos/escaner">Ir a /documentos/escaner</Link>
+            </div>
+          </div>
+        </div>
+
+        {/* Listado de recientes (placeholder estético) */}
+        <div className="panel">
+          <strong>Recientes</strong>
+          <div
+            style={{
+              display: "grid",
+              gap: 12,
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px,1fr))",
+              marginTop: 12,
+            }}
+          >
+            {[1,2,3].map((i) => (
+              <div key={i} className="card">
+                <div style={{ fontWeight: 700 }}>Documento {i}</div>
+                <div className="muted">A4 · 2 páginas · Hoy 11:2{i}</div>
+                <div className="mini-bars"><span></span><span></span><span></span><span></span></div>
+                <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                  <button className="btn">Abrir</button>
+                  <button className="btn">Compartir</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="footer-muted" style={{ marginTop: 12 }}>
+          Próximamente: OCR, plantillas automáticas y firma digital.
+        </div>
+      </div>
+
+      {/* ===== Modal del Escáner ===== */}
+      <ScannerModal
+        isOpen={isScanOpen}
+        onClose={() => setIsScanOpen(false)}
+        initialFiles={initialFiles}
+      />
     </div>
   );
 }
