@@ -1,39 +1,31 @@
-import React, { useState } from "react";
-import ScannerModal from "../scanner/components/ScannerModal"; // 👈 IMPORT CORRECTO
-
-const ScannerModalTyped = ScannerModal as unknown as React.ComponentType<{
-  isOpen: boolean;
-  onClose: () => void;
-  initialFiles: File[];
-}>;
+// apps/web/src/pages/DocumentosScanner.tsx
+import React, { useEffect, useState } from "react";
+import ScannerModal from "../scanner/components/ScannerModal";
 
 export default function DocumentosScanner() {
-  const [open, setOpen] = useState(false);
-  const [files, setFiles] = useState<File[]>([]);
-
-  const handlePick: React.ChangeEventHandler<HTMLInputElement> = (e) => {
-    const list = e.target.files ? Array.from(e.target.files) : [];
-    if (list.length) {
-      setFiles(list);
-      setOpen(true);
-    }
-  };
+  const [isOpen, setIsOpen] = useState(true);
+  useEffect(() => setIsOpen(true), []);
 
   return (
-    <div className="container scanner-page" style={{ padding: "24px 0" }}>
+    <div className="container app-main">
       <div className="glass-panel">
-        <h1 style={{ marginTop: 0 }}>Escáner</h1>
-        <p className="muted" style={{ margin: "6px 0 14px" }}>
-          Procesamiento local. Tus archivos no se suben hasta confirmar.
-        </p>
+        <div className="dash-header" style={{ alignItems: "center" }}>
+          <h1 className="brand-title" style={{ marginBottom: 0 }}>Escáner</h1>
+          <p className="brand-sub">Procesamiento local. Tus archivos no se suben hasta confirmar.</p>
+        </div>
 
-        {/* 🔽🔽🔽 Dejá aquí TODO tu UI existente del escáner tal cual lo tenías 🔽🔽🔽 */}
-        {/* Ejemplo: */}
-        {/* {tuBloqueDeControles} */}
-        {/* {tuCanvasStageConOverlay} */}
-        {/* {tusBotones: Vista previa / Confirmar / Exportar PDF/JPG} */}
-        {/* 🔼🔼🔼 ----------------------------------------------------------- 🔼🔼🔼 */}
+        {!isOpen && (
+          <button className="btn btn-primary" onClick={() => setIsOpen(true)} style={{ marginBottom: 16 }}>
+            Abrir escáner
+          </button>
+        )}
 
+        {/* Usa la clase que ya tenés en tu CSS */}
+        <div className="scanner-page">
+          <div className="scanner-stage">
+            <ScannerModal isOpen={isOpen} onClose={() => setIsOpen(false)} />
+          </div>
+        </div>
       </div>
     </div>
   );
