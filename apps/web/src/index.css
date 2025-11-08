@@ -349,10 +349,87 @@ html,body {
 
 /* gradiente para svg donuts (usamos filter: url(#) sólo si lo inyectás; como fallback, sólido) */
 
-/* ====== Scanner UI (oscuro y legible) ====== */
+/* ================== Inmovia — Scanner (formato baseline) ================== */
+/* Usa los colores del tema (— no tocamos la paleta existente) */
+
+.modal-overlay {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(4, 12, 28, .55);           /* vidrio oscuro */
+  backdrop-filter: blur(10px);
+  z-index: 9999;
+}
+
+.modal {
+  width: min(1200px, 95vw);
+  height: min(86vh, 900px);
+  border-radius: 18px;
+  background: rgba(10, 18, 34, .72);          /* vidrio */
+  box-shadow: 0 22px 70px rgba(0,0,0,.55);
+  border: 1px solid rgba(141,197,255,.16);
+  display: flex; flex-direction: column;
+  overflow: hidden;                           /* evita que algo se “salga” del cuadro */
+  backdrop-filter: blur(14px);
+}
+
+.modal-head, .modal-foot {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(141,197,255,.12);
+}
+.modal-foot { border-top: 1px solid rgba(141,197,255,.12); border-bottom: none; justify-content: flex-end; }
+
+.modal-body {
+  flex: 1; padding: 16px;
+  display: grid; gap: 16px;
+  grid-template-columns: 320px 1fr;           /* izquierda sliders | derecha canvas */
+}
+/* Importante para que la columna derecha permita scroll interno */
+.modal-body > * { min-width: 0; min-height: 0; }
+
+/* Panel izquierdo (sliders) */
+.left .group { margin-bottom: 14px; }
+.left label { display: block; font-size: 14px; margin-bottom: 6px; color: var(--ink-0); opacity: .85; }
+.left input[type="range"] { width: 100%; accent-color: var(--brand); }
+
+/* Botones base del tema (ya existen), refuerzo de variantes por si hiciera falta */
+.btn { background: rgba(13,27,42,.8); color: #e6f0ff; padding: 8px 12px; border-radius: 12px; border: 1px solid rgba(23,48,79,.8); }
+.btn:hover { background: rgba(18,42,78,.9); }
+.btn-primary { background: linear-gradient(135deg, var(--brand), var(--brand-2)); border-color: rgba(42,121,255,.8); color:#fff; }
+.btn-secondary { background: rgba(22,38,60,.9); border-color: rgba(29,51,85,.9); color:#cfe2ff; }
+
+/* Stage (canvas + overlay) */
+.stage { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.canvas-wrap {
+  position: relative; flex: 1; overflow: auto; /* el scroll vive acá */
+  min-height: 0;
+  background: radial-gradient(1200px 600px at 50% -10%, rgba(8,20,44,.9), rgba(5,12,28,.9));
+  border-radius: 14px; border: 1px solid rgba(141,197,255,.14);
+}
+.canvas-wrap canvas { display: block; margin: 0 auto; background: transparent; }
+
+.overlay { position: absolute; inset: 0; pointer-events: none; }
+.overlay .poly { fill: rgba(59,130,246,.10); stroke: #5ab0ff; stroke-width: 3; }
+.overlay .handle { fill: #00e0ff; opacity: .95; }
+
+/* Barra inferior: navegación + n° de página + export */
+.bottom-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; padding: 8px;
+  border-top: 1px solid rgba(141,197,255,.10);
+  background: transparent;
+}
+.page-indicator { color: var(--ink-0); opacity: .9; }
+.page-number input {
+  width: 90px; padding: 6px 8px; border-radius: 10px;
+  background: rgba(13,27,42,.85); color: #e6f0ff; border: 1px solid rgba(23,48,79,.9);
+}
+
+/* Estilo general del contenido en el modal del escáner */
 .scanner-page { color: var(--ink-0); }
 .scanner-page h1, .scanner-page h2, .scanner-page p, .scanner-page label { color: var(--ink-0); }
 
+/* Inputs del escáner con look del tema */
 .scanner-page input[type="text"],
 .scanner-page input[type="number"],
 .scanner-page input[type="file"],
@@ -365,24 +442,88 @@ html,body {
   padding: 6px 10px;
 }
 
-.scanner-page button {
-  background: linear-gradient(180deg, var(--brand) 0%, var(--brand-2) 100%);
-  color: #fff;
-  font-weight: 700;
-  border: 1px solid rgba(255,255,255,.08);
-  border-radius: 999px;
-  padding: 8px 14px;
-}
+/* File picker: botón + input oculto */
+.scanner-page .btn-file { display:inline-flex; align-items:center; gap:8px; }
+.scanner-page input[type="file"].hidden { display:none; }
+label[for="scanner-file"].btn { box-shadow: 0 12px 28px rgba(10,73,255,.24); }
 
-.scanner-page input[type="range"] {
-  width: 100%;
-  accent-color: var(--brand);
-}
+/* Contenedor con scroll controlado (referencia 70vh) */
+.scanner-stage { max-height: 70vh; overflow: auto; padding: 12px; }
 
+/* “Barra” visual para sliders horizontales grandes (si las usás aparte) */
 .scanner-bar {
   background: rgba(8,20,44,.65);
   border: 1px solid rgba(141,197,255,.14);
   border-radius: 14px;
   padding: 12px;
   margin: 10px 0;
+}
+
+/* =========== Scanner — Fix layout, scroll y overlay 1:1 =========== */
+
+/* Evita que el panel tape la barra inferior en flex layouts */
+.modal-body { min-height: 0; }
+.stage { display: flex; flex-direction: column; min-height: 0; }
+
+/* Panel vidrioso y con scroll interno controlado */
+.scanner-modal .canvas-wrap{
+  position: relative;
+  flex: 1;
+  /* Deja espacio para la bottom-bar dentro del modal (ajuste fino) */
+  max-height: calc(70vh - 88px);
+  overflow: auto;                    /* scroll en ambas direcciones */
+  background: #0b1420;
+  border-radius: 12px;
+  border: 1px solid rgba(141,197,255,.14);
+}
+
+/* El contenedor interno toma EXACTAMENTE el tamaño del canvas */
+.scanner-modal .canvas-inner{
+  position: relative;                /* referencia para overlay absoluto */
+  display: inline-block;
+  line-height: 0;                    /* evita gaps por inline-block */
+  width: auto; height: auto;         /* tamaño viene por style inline */
+}
+
+/* Canvas sin escalado CSS (usa sus width/height reales) */
+.scanner-modal .canvas-inner canvas{
+  display: block;
+  max-width: none;
+  image-rendering: auto;
+  background: #0b1420;
+}
+
+/* Overlay alineado 1:1 con el canvas */
+.scanner-modal .canvas-inner .overlay{
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* Polígono y vértices (azules, más suaves y chicos) */
+.scanner-modal .overlay .poly{
+  fill: rgba(42,168,255,.06);
+  stroke: #2AABFF;
+  stroke-width: 2;
+}
+
+.scanner-modal .overlay .handle{
+  fill: #2AABFF;
+  stroke: #ffffff;
+  stroke-width: 1;
+  r: 10;
+  filter: drop-shadow(0 2px 6px rgba(42,168,255,.35));
+  opacity: .95;
+}
+
+/* Botonera inferior siempre visible dentro del modal */
+.bottom-bar{
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; padding: 8px 10px;
+  margin-top: 8px;
+  background: transparent;
+  border-top: 1px solid rgba(141,197,255,.08);
+  border-radius: 0 0 12px 12px;
 }
