@@ -1,10 +1,8 @@
 import React, { useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import ScannerModal from "../scanner/components/ScannerModal";
 
 export default function Documentos() {
-  const navigate = useNavigate();
-
   // Estado del escáner
   const [isScanOpen, setIsScanOpen] = useState(false);
   const [initialFiles, setInitialFiles] = useState<File[]>([]);
@@ -24,16 +22,27 @@ export default function Documentos() {
   function onFilesChange(e: React.ChangeEvent<HTMLInputElement>) {
     const fs = e.target.files;
     if (!fs || fs.length === 0) return;
-    // Pasamos estas imágenes al escáner
     setInitialFiles(Array.from(fs));
     setIsScanOpen(true);
-    // limpiar el input para poder volver a elegir lo mismo si quiero
     e.currentTarget.value = "";
   }
 
   return (
     <div className="app-main">
       <div className="glass-panel">
+        {/* === Marca fija arriba-izquierda: vuelve al Dashboard === */}
+        <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
+          <Link
+            to="/dashboard"
+            className="brand"
+            style={{ textDecoration: "none", color: "inherit" }}
+            title="Ir al Dashboard"
+          >
+            <span className="brand-badge" />
+            Inmovia Office
+          </Link>
+        </div>
+
         <div className="dash-header">
           <h1 className="brand-title">Documentos</h1>
           <p className="brand-sub">Cargá, escaneá y organizá tus documentos.</p>
@@ -75,7 +84,7 @@ export default function Documentos() {
             </div>
           </div>
 
-          {/* Escanear: abre modal vacío (luego agregás imágenes desde el propio modal) */}
+          {/* Escanear: abre modal vacío */}
           <div className="stat-card">
             <div className="stat-head">Escáner</div>
             <div className="stat-value" style={{ fontSize: 24 }}>Escanear</div>

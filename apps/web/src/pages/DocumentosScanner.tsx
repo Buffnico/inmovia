@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import ScannerModal from "../scanner/components/ScannerModal";
 
 export default function DocumentosScanner() {
-  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(true);
 
   useEffect(() => {
@@ -13,12 +12,25 @@ export default function DocumentosScanner() {
   return (
     <div className="app-main">
       <div className="glass-panel">
+        {/* Marca arriba-izquierda para volver al Dashboard */}
+        <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
+          <Link
+            to="/dashboard"
+            className="brand"
+            style={{ textDecoration: "none", color: "inherit" }}
+            title="Ir al Dashboard"
+          >
+            <span className="brand-badge" />
+            Inmovia Office
+          </Link>
+        </div>
+
         <div className="dash-header" style={{ justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <h1 className="brand-title">Escáner</h1>
             <p className="brand-sub">Ventana flotante sobre Documentos.</p>
           </div>
-          <button className="btn" onClick={() => navigate("/documentos")}>Volver a Documentos</button>
+          <Link className="btn" to="/documentos">Volver a Documentos</Link>
         </div>
 
         <div className="panel">
