@@ -4,6 +4,9 @@ const cors = require("cors");
 const helmet = require("helmet");
 const compression = require("compression");
 
+const eduRouter = require("./routes/edu");
+const calendarRoutes = require("./googleCalendar"); // 👈 Google Calendar
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -16,7 +19,6 @@ app.use(compression());
 
 /**
  * CORS: producción (Vercel) + dev local
- * Si luego cambiás el dominio de Vercel, actualizá este array.
  */
 app.use(
   cors({
@@ -40,8 +42,10 @@ app.get("/api/ping", (_req, res) =>
 /**
  * Rutas
  */
-const eduRouter = require("./routes/edu");
 app.use("/api/edu", eduRouter);
+
+// 👇 Todas las rutas de calendario arrancan con /api/calendar
+app.use("/api/calendar", calendarRoutes);
 
 /**
  * Start

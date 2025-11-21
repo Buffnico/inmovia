@@ -1,42 +1,57 @@
 // apps/web/src/router.tsx
 import React from "react";
-import { createHashRouter } from "react-router-dom";
+import {
+  HashRouter,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
 
 import App from "./App";
 
-// Páginas existentes (comentá las que no tengas)
+// Páginas
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
-import Documentos from "./pages/Documentos";
-import DocumentosScanner from "./pages/DocumentosScanner";
 import Propiedades from "./pages/Propiedades";
-// import NotFound from "./pages/NotFound.tsx"; // si no la tenés, comentá y sacá la ruta
+import Clientes from "./pages/Clientes";
+import Documentos from "./pages/Documentos";
+import Agenda from "./pages/Agenda";
+import Edu from "./pages/Edu";
+import Ajustes from "./pages/Ajustes";
+import ChatInterno from "./pages/ChatInterno";
+import Whatsapp from "./pages/Whatsapp";
+import Redes from "./pages/Redes";
+import IvoT from "./pages/IvoT";
 
-// ✅ NUEVO: Inmovia Edu
-import Edu from "./pages/Edu.jsx";
-import EduModule from "./pages/EduModule.jsx";
+const AppRouter: React.FC = () => {
+  return (
+    <HashRouter>
+      <Routes>
+        <Route path="/" element={<App />}>
+          {/* Home sin sidebar */}
+          <Route index element={<Home />} />
 
-const router = createHashRouter([
-  {
-    path: "/",
-    element: <App />,
-    children: [
-      { index: true, element: <Home /> },
-      { path: "dashboard", element: <Dashboard /> },
-      { path: "", element: <Home /> },
-      { path: "documentos", element: <Documentos /> },
-      { path: "documentos/escaner", element: <Documentos /> },
-      { path: "propiedades", element: <Propiedades /> },
-      { path: "edu", element: <Edu /> },
-      { path: "edu/:id", element: <EduModule /> },
+          {/* Rutas internas */}
+          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="propiedades" element={<Propiedades />} />
+          <Route path="clientes" element={<Clientes />} />
+          <Route path="documentos/*" element={<Documentos />} />
+          <Route path="agenda" element={<Agenda />} />
+          <Route path="chat-interno" element={<ChatInterno />} />
+          <Route path="whatsapp" element={<Whatsapp />} />
+          <Route path="redes" element={<Redes />} />
+          <Route path="edu" element={<Edu />} />
+          <Route path="configuracion" element={<Ajustes />} />
 
-      // 👉 NUEVO: rutas de Edu
-      { path: "edu", element: <Edu /> },
-      { path: "edu/:id", element: <EduModule /> },
+          {/* Centro de Ivo-t (pantalla completa) */}
+          <Route path="ivot" element={<IvoT />} />
 
-      // { path: "*", element: <NotFound /> }, // si no tenés NotFound, sacá esta línea
-    ],
-  },
-]);
+          {/* Cualquier otra ruta → Home */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
+      </Routes>
+    </HashRouter>
+  );
+};
 
-export default router;
+export default AppRouter;

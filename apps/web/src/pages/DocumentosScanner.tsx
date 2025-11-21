@@ -10,7 +10,7 @@ export default function DocumentosScanner() {
   }, []);
 
   return (
-    <div className="app-main">
+    <div className="app-main app-documentos-escaner">
       <div className="glass-panel">
         {/* Marca arriba-izquierda para volver al Dashboard */}
         <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>

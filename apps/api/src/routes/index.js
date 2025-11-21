@@ -1,6 +1,6 @@
 ﻿import express from "express";
 import portadas from "./portadas.js";
-
+require("dotenv").config();
 const eduRouter = require("./routes/edu");
 const router = express.Router();
 

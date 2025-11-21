@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createPDFfromJPGs } from "../lib/pdf";
 
 /** ========= Tipos ========= */
@@ -9,14 +9,13 @@ export type Page = {
   name: string;
   file?: File;
   imageBitmap?: ImageBitmap;
-  canvas?: HTMLCanvasElement;
   w: number;
   h: number;
-  crop?: [Point, Point, Point, Point];
+  crop?: [Point, Point, Point, Point]; // 4 puntos, horario
   params: {
-    shadows: number;   // 0..10
-    contrast: number;  // 0..10
-    binarize: number;  // 0..10 (0 = off)
+    shadows: number; // 0..10
+    contrast: number; // 0..10
+    binarize: number; // 0..10 (0 = off)
   };
   confirmedCrop?: boolean;
   pageNumber?: number;
@@ -62,10 +61,10 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-/** Garantiza siempre 4 puntos */
+/** Si no hay crop, devolvemos un rectángulo margen 20px */
 function getCrop(p: Page): [Point, Point, Point, Point] {
-  const W = p.canvas?.width ?? p.w ?? 100;
-  const H = p.canvas?.height ?? p.h ?? 100;
+  const W = p.w ?? 100;
+  const H = p.h ?? 100;
   const fallback: [Point, Point, Point, Point] = [
     { x: 20, y: 20 },
     { x: W - 20, y: 20 },
@@ -75,7 +74,7 @@ function getCrop(p: Page): [Point, Point, Point, Point] {
   return (p.crop ?? fallback) as [Point, Point, Point, Point];
 }
 
-/** Renderiza en canvas: recorte (opcional) + filtros simples */
+/** Renderiza (recorte por bbox + filtros) al canvas destino */
 function renderProcessedToCanvas(
   page: Page,
   targetCanvas: HTMLCanvasElement,
@@ -86,9 +85,13 @@ function renderProcessedToCanvas(
 
   const srcW = page.imageBitmap.width;
   const srcH = page.imageBitmap.height;
-
   const crop = getCrop(page);
-  let sx = 0, sy = 0, sw = srcW, sh = srcH;
+
+  // bbox simple del polígono
+  let sx = 0,
+    sy = 0,
+    sw = srcW,
+    sh = srcH;
 
   if (applyCrop) {
     const xs = crop.map((p) => p.x);
@@ -112,10 +115,10 @@ function renderProcessedToCanvas(
   const data = imgData.data;
 
   const shFactor = 1 + (shadows / 10) * 0.6; // 1..1.6
-  const cFactor = (contrast / 10) * 0.6;     // 0..0.6
+  const cFactor = (contrast / 10) * 0.6; // 0..0.6
 
   for (let i = 0; i < data.length; i += 4) {
-    // quitar sombras (leve gamma)
+    // quitar sombras (gamma simple)
     data[i] = clamp(data[i] * shFactor, 0, 255);
     data[i + 1] = clamp(data[i + 1] * shFactor, 0, 255);
     data[i + 2] = clamp(data[i + 2] * shFactor, 0, 255);
@@ -139,12 +142,12 @@ function renderProcessedToCanvas(
   ctx.putImageData(imgData, 0, 0);
 }
 
-/** Convierte una página a JPG (Blob) aplicando recorte confirmado */
+/** Convierte página a JPG Blob (con el recorte confirmado) */
 async function pageToJPGBlob(page: Page, quality = 0.92): Promise<Blob> {
-  const canvas = document.createElement("canvas");
-  renderProcessedToCanvas(page, canvas, true);
+  const tmp = document.createElement("canvas");
+  renderProcessedToCanvas(page, tmp, true);
   const blob = await new Promise<Blob>((res) =>
-    canvas.toBlob((b) => res(b as Blob), "image/jpeg", quality)
+    tmp.toBlob((b) => res(b as Blob), "image/jpeg", quality)
   );
   return blob;
 }
@@ -159,68 +162,19 @@ const ScannerModal: React.FC<ScannerModalProps> = ({
   className,
 }) => {
   const [pages, setPages] = useState<Page[]>([]);
-  /** idx es el índice *visual* (ordenado) */
   const [idx, setIdx] = useState(0);
-  const [mode, setMode] = useState<Mode>("edit");
+
+  const [mode, setMode] = useState<Mode>("edit"); // ← clave para overlay/edición
   const [showOverlay, setShowOverlay] = useState(true);
   const [autoPreview, setAutoPreview] = useState(true);
 
-  // sliders baseline
   const [shadows, setShadows] = useState(5);
   const [contrast, setContrast] = useState(5);
   const [binarize, setBinarize] = useState(0);
 
-  const stageRef = useRef<HTMLDivElement | null>(null);
-  const wrapRef = useRef<HTMLDivElement | null>(null); // contenedor con scroll
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  /** ============ ORDEN POR NÚMERO DE PÁGINA ============ */
-  const sortedIdx = useMemo(() => {
-    // sin número → al final, estable por índice original
-    return pages
-      .map((p, i) => ({
-        i,
-        n: p.pageNumber ?? Number.MAX_SAFE_INTEGER,
-      }))
-      .sort((a, b) => (a.n - b.n) || (a.i - b.i))
-      .map(o => o.i);
-  }, [pages]);
-
-  const viewCount = sortedIdx.length;
-  const realIndex = sortedIdx[idx] ?? 0;     // índice real en `pages`
-  const page = pages[realIndex];             // página actual según el orden visual
-
-  /** Utils dibujo (usa el índice real) */
-  function clearCanvas(c?: HTMLCanvasElement | null) {
-    if (!c) return;
-    const ctx = c.getContext("2d");
-    if (!ctx) return;
-    ctx.clearRect(0, 0, c.width, c.height);
-  }
-
-  /** Dibuja según estado actual (decide recorte internamente) */
-  function drawCurrent(force?: "crop" | "raw") {
-    const p = page;
-    const c = canvasRef.current;
-    if (!p || !c) return;
-    const applyCrop =
-      force === "crop"
-        ? true
-        : force === "raw"
-        ? false
-        : !!p.confirmedCrop || mode === "preview";
-
-    clearCanvas(c);
-    renderProcessedToCanvas(p, c, applyCrop);
-  }
-
-  function drawCurrentRaf(force?: "crop" | "raw") {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => drawCurrent(force));
-    });
-  }
-
-  /** Carga inicial (si vienen archivos) */
+  /** Carga inicial (si llegan archivos) */
   useEffect(() => {
     if (!isOpen) return;
     if (!initialFiles || initialFiles.length === 0) return;
@@ -243,6 +197,7 @@ const ScannerModal: React.FC<ScannerModalProps> = ({
       setIdx(0);
       setMode("edit");
       setShowOverlay(true);
+      setTimeout(() => drawPreview(), 0);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -264,61 +219,50 @@ const ScannerModal: React.FC<ScannerModalProps> = ({
       });
     }
     setPages(arr);
-    // mover selección al final (última imagen agregada) en el orden visual
-    const nextSorted = arr
-      .map((p, i) => ({ i, n: p.pageNumber ?? Number.MAX_SAFE_INTEGER }))
-      .sort((a, b) => (a.n - b.n) || (a.i - b.i))
-      .map(o => o.i);
-    const real = arr.length - 1;
-    const newViewIdx = Math.max(0, nextSorted.indexOf(real));
-    setIdx(newViewIdx);
-
+    setIdx(arr.length - 1);
     setMode("edit");
     setShowOverlay(true);
-    setTimeout(() => drawCurrentRaf("raw"), 0);
+    setTimeout(() => drawPreview(), 0);
   }
 
-  /** Sincroniza sliders a la página actual (índice real) */
+  /** Mantener sliders en la página actual */
   useEffect(() => {
-    if (!page) return;
+    if (!pages[idx]) return;
+    const p = pages[idx];
     if (
-      page.params.shadows !== shadows ||
-      page.params.contrast !== contrast ||
-      page.params.binarize !== binarize
+      p.params.shadows !== shadows ||
+      p.params.contrast !== contrast ||
+      p.params.binarize !== binarize
     ) {
-      setPages(prev => {
-        const arr = [...prev];
-        arr[realIndex] = { ...page, params: { shadows, contrast, binarize } };
-        return arr;
-      });
+      const arr = [...pages];
+      arr[idx] = { ...p, params: { shadows, contrast, binarize } };
+      setPages(arr);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shadows, contrast, binarize, realIndex]);
+  }, [shadows, contrast, binarize, idx]);
 
-  /** Auto-preview (usa estado actual para decidir crop/raw) */
+  /** Re-render preview cuando cambian entradas
+   *  — si la página está confirmada, aplicamos el recorte en la vista. */
   useEffect(() => {
     if (!autoPreview) return;
-    drawCurrentRaf();
+    drawPreview();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pages, realIndex, autoPreview, mode]);
+  }, [pages, idx, autoPreview, mode]);
 
-  /** Al cambiar de página visual: limpiar, scrollear, setear modo y redibujar */
-  useEffect(() => {
-    if (!isOpen) return;
-    clearCanvas(canvasRef.current);
-    if (wrapRef.current) wrapRef.current.scrollTo({ top: 0, left: 0 });
-    const nextConfirmed = !!page?.confirmedCrop;
-    setMode(nextConfirmed ? "preview" : "edit");
-    setShowOverlay(!nextConfirmed);
-    drawCurrentRaf(nextConfirmed ? "crop" : "raw");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idx, isOpen, realIndex]);
-
-  /** Coords (drag vértices) */
-  function stageToImageCoords(e: React.MouseEvent): Point | null {
-    if (!page) return null;
+  /** Dibuja preview; por defecto respeta confirmedCrop */
+  function drawPreview(forceApplyCrop?: boolean) {
+    const p = pages[idx];
     const canvas = canvasRef.current;
-    if (!canvas) return null;
+    if (!p || !canvas) return;
+    const apply = forceApplyCrop ?? !!p.confirmedCrop;
+    renderProcessedToCanvas(p, canvas, apply);
+  }
+
+  /** Coordenadas en espacio de imagen */
+  function stageToImageCoords(e: React.MouseEvent): Point | null {
+    const p = pages[idx];
+    const canvas = canvasRef.current;
+    if (!p || !canvas) return null;
     const rect = canvas.getBoundingClientRect();
     const px = clamp(e.clientX - rect.left, 0, rect.width);
     const py = clamp(e.clientY - rect.top, 0, rect.height);
@@ -327,17 +271,19 @@ const ScannerModal: React.FC<ScannerModalProps> = ({
     return { x: px * scaleX, y: py * scaleY };
   }
 
-  /** Drag vértices */
+  /** Drag vértices (sólo en edit) */
   const dragRef = useRef<{ dragging: boolean; pointIndex: number }>({
     dragging: false,
     pointIndex: -1,
   });
 
   function onDown(e: React.MouseEvent) {
-    if (!showOverlay || mode !== "edit" || !page) return;
+    if (!showOverlay || mode !== "edit") return;
+    const p = pages[idx];
+    if (!p) return;
     const pos = stageToImageCoords(e);
     if (!pos) return;
-    const cropNow = getCrop(page);
+    const cropNow = getCrop(p);
 
     let best = { i: -1, d: Number.MAX_VALUE };
     cropNow.forEach((pt, i) => {
@@ -350,60 +296,58 @@ const ScannerModal: React.FC<ScannerModalProps> = ({
     }
   }
   function onMove(e: React.MouseEvent) {
-    if (!dragRef.current.dragging || !page) return;
+    if (!dragRef.current.dragging) return;
+    const p = pages[idx];
+    if (!p) return;
     const pos = stageToImageCoords(e);
     if (!pos) return;
-    const base = getCrop(page);
+    const base = getCrop(p);
     const crop = [...base] as [Point, Point, Point, Point];
     crop[dragRef.current.pointIndex] = { x: pos.x, y: pos.y };
-
-    setPages(prev => {
+    setPages((prev) => {
       const arr = [...prev];
-      arr[realIndex] = { ...page, crop };
+      arr[idx] = { ...p, crop };
       return arr;
     });
-
-    if (autoPreview) drawCurrent();
+    if (autoPreview) drawPreview(false);
   }
   function onUp() {
     dragRef.current = { dragging: false, pointIndex: -1 };
   }
 
-  /** Confirmar recorte (oculta vértices y dibuja con crop) */
+  /** Confirmar recorte -> aplica al instante, cambia a preview y oculta overlay */
   function onConfirmCrop() {
-    if (!page) return;
-    setPages(prev => {
+    setPages((prev) => {
+      const p = prev[idx];
       const arr = [...prev];
-      arr[realIndex] = { ...page, crop: getCrop(page), confirmedCrop: true };
+      arr[idx] = { ...p, crop: getCrop(p), confirmedCrop: true };
       return arr;
     });
-    setShowOverlay(false);
     setMode("preview");
-    clearCanvas(canvasRef.current);
-    setTimeout(() => drawCurrentRaf("crop"), 0);
+    setShowOverlay(false);
+    drawPreview(true); // ← render con recorte confirmado EN LA VISTA
   }
 
-  /** Volver a editar recorte */
+  /** Editar recorte (vuelve a mostrar vértices) */
   function onEditCrop() {
-    if (!page) return;
-    setPages(prev => {
+    setPages((prev) => {
+      const p = prev[idx];
       const arr = [...prev];
-      arr[realIndex] = { ...page, confirmedCrop: false };
+      arr[idx] = { ...p, confirmedCrop: false };
       return arr;
     });
-    setShowOverlay(true);
     setMode("edit");
-    clearCanvas(canvasRef.current);
-    setTimeout(() => drawCurrentRaf("raw"), 0);
+    setShowOverlay(true);
+    drawPreview(false);
   }
 
-  /** Reset a original (quita crop y filtros) */
+  /** Resetear página */
   function onResetPage() {
-    if (!page) return;
-    setPages(prev => {
+    setPages((prev) => {
+      const p = prev[idx];
       const arr = [...prev];
-      arr[realIndex] = {
-        ...page,
+      arr[idx] = {
+        ...p,
         crop: undefined,
         confirmedCrop: false,
         params: { shadows: 5, contrast: 5, binarize: 0 },
@@ -413,26 +357,34 @@ const ScannerModal: React.FC<ScannerModalProps> = ({
     setShadows(5);
     setContrast(5);
     setBinarize(0);
-    setShowOverlay(true);
     setMode("edit");
-    clearCanvas(canvasRef.current);
-    setTimeout(() => drawCurrentRaf("raw"), 0);
+    setShowOverlay(true);
+    drawPreview(false);
   }
 
   /** Export JPG página */
   async function onExportJPG() {
-    if (!page) return;
-    const blob = await pageToJPGBlob(page, 0.92);
-    downloadBlob(blob, `${page.name || `pagina-${idx + 1}`}.jpg`);
+    const p = pages[idx];
+    if (!p) return;
+    const blob = await pageToJPGBlob(p, 0.92);
+    downloadBlob(blob, `${p.name || `pagina-${idx + 1}`}.jpg`);
   }
 
-  /** Export PDF (todas) en orden visual */
+  /** Orden por Nº de página (para export y UI) */
+  function getSortedIndices(): number[] {
+    return pages
+      .map((p, i) => ({ i, n: p.pageNumber ?? Number.POSITIVE_INFINITY }))
+      .sort((a, b) => a.n - b.n || a.i - b.i)
+      .map((x) => x.i);
+  }
+
+  /** Export PDF (todas) */
   async function onExportAllPDF() {
-    if (pages.length === 0) return;
+    if (!pages.length) return;
+    const order = getSortedIndices();
     const images: Uint8Array[] = [];
-    for (const i of sortedIdx) {
-      const p = pages[i];
-      const blob = await pageToJPGBlob(p, 0.92);
+    for (const i of order) {
+      const blob = await pageToJPGBlob(pages[i], 0.92);
       const ab = await blob.arrayBuffer();
       images.push(new Uint8Array(ab));
     }
@@ -440,51 +392,46 @@ const ScannerModal: React.FC<ScannerModalProps> = ({
     downloadBlob(new Blob([pdfBytes], { type: "application/pdf" }), "documento.pdf");
   }
 
-  /** Navegación por el orden visual */
-  function go(delta: -1 | 1) {
-    setIdx((i) => clamp(i + delta, 0, viewCount - 1));
-    // El useEffect([idx]) limpia/redibuja/overlay
+  /** Navegación */
+  function go(prevNext: -1 | 1) {
+    setIdx((i) => clamp(i + prevNext, 0, pages.length - 1));
+    setMode("edit");
+    setShowOverlay(true);
+    setTimeout(() => drawPreview(), 0); // respeta confirmedCrop en la nueva página
   }
 
-  /** set pageNumber por página (re-ubica la selección según el nuevo orden) */
+  /** Setear N° de página y reordenar visualmente */
   function setPageNumberForCurrent(n: number) {
-    if (!page) return;
-    setPages(prev => {
+    setPages((prev) => {
       const arr = [...prev];
-      const pn = Number.isFinite(n) && n > 0 ? Math.floor(n) : undefined;
-      arr[realIndex] = { ...page, pageNumber: pn };
-
-      // recalcular orden con el array actualizado
-      const nextSorted = arr
-        .map((p, i) => ({ i, n: p.pageNumber ?? Number.MAX_SAFE_INTEGER }))
-        .sort((a, b) => (a.n - b.n) || (a.i - b.i))
-        .map(o => o.i);
-
-      // ubicar el índice visual del ítem editado
-      const newViewIdx = Math.max(0, nextSorted.indexOf(realIndex));
-      setIdx(newViewIdx);
-
-      return arr;
+      arr[idx] = { ...arr[idx], pageNumber: n || undefined };
+      // ordenamos para UI
+      return arr
+        .map((p, i) => ({ p, i }))
+        .sort((a, b) => {
+          const an = a.p.pageNumber ?? Number.POSITIVE_INFINITY;
+          const bn = b.p.pageNumber ?? Number.POSITIVE_INFINITY;
+          return an - bn || a.i - b.i;
+        })
+        .map((x) => x.p);
     });
   }
 
-  /** Render inicial al abrir */
+  /** Dibujo inicial al abrir */
   useEffect(() => {
     if (!isOpen) return;
-    setTimeout(() => drawCurrentRaf("raw"), 0);
+    setTimeout(() => drawPreview(), 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
+  const page = pages[idx];
+  const cropToDraw = page ? getCrop(page) : undefined;
   if (!isOpen) return null;
-
-  // dimensiones para overlay 1:1 y scroll correcto (según la página actual)
-  const cw = (page && (canvasRef.current?.width || page.w)) || 0;
-  const ch = (page && (canvasRef.current?.height || page.h)) || 0;
 
   return (
     <div className="modal-overlay">
       <div className={`modal ${className ?? ""}`}>
-        {/* ====== Header ====== */}
+        {/* ===== Header ===== */}
         <div className="modal-head">
           <strong style={{ fontSize: 18 }}>Escáner</strong>
 
@@ -514,9 +461,9 @@ const ScannerModal: React.FC<ScannerModalProps> = ({
           </button>
         </div>
 
-        {/* ====== Body ====== */}
-        <div className="modal-body scanner-page">
-          {/* Panel izquierdo: sliders + acciones */}
+        {/* ===== Body ===== */}
+        <div className="modal-body">
+          {/* Sliders */}
           <div className="left">
             <div className="group">
               <label>Quitar sombras</label>
@@ -549,8 +496,8 @@ const ScannerModal: React.FC<ScannerModalProps> = ({
               />
             </div>
 
-            <div className="btn-row" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button className="btn" onClick={() => drawCurrentRaf("raw")}>
+            <div className="btn-row">
+              <button className="btn" onClick={() => drawPreview()}>
                 Vista previa
               </button>
 
@@ -570,35 +517,38 @@ const ScannerModal: React.FC<ScannerModalProps> = ({
             </div>
           </div>
 
-          {/* Panel derecho: canvas + overlay + barra inferior */}
+          {/* Canvas + overlay scrolleable */}
           <div
             className="stage"
-            ref={stageRef}
             onMouseDown={onDown}
             onMouseMove={onMove}
             onMouseUp={onUp}
             onMouseLeave={onUp}
           >
-            <div className="canvas-wrap scanner-modal" ref={wrapRef}>
+            <div className="canvas-wrap scanner-modal">
               <div
                 className="canvas-inner"
-                style={{ width: `${cw}px`, height: `${ch}px` }}
+                style={{
+                  width: (canvasRef.current?.width || page?.w || 0) + "px",
+                  height: (canvasRef.current?.height || page?.h || 0) + "px",
+                }}
               >
-                {/* canvas con key por página real para evitar “imagen congelada” */}
-                <canvas ref={canvasRef} key={page?.id || "empty"} />
-
-                {/* Overlay solo en modo edición */}
-                {page && showOverlay && mode === "edit" && page.crop && cw > 0 && ch > 0 && (
+                <canvas ref={canvasRef} />
+                {page && showOverlay && cropToDraw && mode === "edit" && (
                   <svg
                     className="overlay"
-                    viewBox={`0 0 ${cw} ${ch}`}
+                    width="100%"
+                    height="100%"
+                    viewBox={`0 0 ${canvasRef.current?.width ?? page.w} ${
+                      canvasRef.current?.height ?? page.h
+                    }`}
                     preserveAspectRatio="none"
                   >
                     <polygon
                       className="poly"
-                      points={getCrop(page).map((p) => `${p.x},${p.y}`).join(" ")}
+                      points={cropToDraw.map((p) => `${p.x},${p.y}`).join(" ")}
                     />
-                    {getCrop(page).map((p, i) => (
+                    {cropToDraw.map((p, i) => (
                       <circle key={i} className="handle" cx={p.x} cy={p.y} r={10} />
                     ))}
                   </svg>
@@ -608,29 +558,24 @@ const ScannerModal: React.FC<ScannerModalProps> = ({
 
             {/* Barra inferior */}
             <div className="bottom-bar">
-              <div className="nav" style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <button
-                  className="btn"
-                  onClick={() => go(-1)}
-                  disabled={idx === 0}
-                  title="Anterior"
-                >
+              <div className="nav">
+                <button className="btn" onClick={() => go(-1)} disabled={idx === 0} title="Anterior">
                   ◀
                 </button>
                 <span className="page-indicator">
-                  Página {idx + 1} / {viewCount || 1}
+                  Página {idx + 1} / {pages.length || 1}
                 </span>
                 <button
                   className="btn"
                   onClick={() => go(1)}
-                  disabled={idx >= viewCount - 1}
+                  disabled={idx >= pages.length - 1}
                   title="Siguiente"
                 >
                   ▶
                 </button>
               </div>
 
-              <div className="page-number" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div className="page-number">
                 <label>N° de página</label>
                 <input
                   type="number"
@@ -642,15 +587,11 @@ const ScannerModal: React.FC<ScannerModalProps> = ({
                 />
               </div>
 
-              <div className="export" style={{ display: "flex", gap: 8 }}>
+              <div className="export">
                 <button className="btn" onClick={onExportJPG} disabled={!page}>
                   Exportar JPG (página)
                 </button>
-                <button
-                  className="btn btn-primary"
-                  onClick={onExportAllPDF}
-                  disabled={viewCount === 0}
-                >
+                <button className="btn btn-primary" onClick={onExportAllPDF} disabled={!pages.length}>
                   Exportar PDF (todas)
                 </button>
               </div>

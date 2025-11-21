@@ -28,7 +28,7 @@ export default function Documentos() {
   }
 
   return (
-    <div className="app-main">
+    <div className="app-main app-documentos">
       <div className="glass-panel">
         {/* === Marca fija arriba-izquierda: vuelve al Dashboard === */}
         <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
@@ -53,12 +53,19 @@ export default function Documentos() {
           {/* Crear documento (placeholder) */}
           <div className="stat-card">
             <div className="stat-head">Nuevo</div>
-            <div className="stat-value" style={{ fontSize: 24 }}>Crear documento</div>
+            <div className="stat-value" style={{ fontSize: 24 }}>
+              Crear documento
+            </div>
             <p className="muted" style={{ marginTop: 6 }}>
               Usá plantillas de la oficina (próximamente).
             </p>
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-              <button className="btn btn-primary" onClick={() => alert("Próximamente: generador con plantillas")}>
+              <button
+                className="btn btn-primary"
+                onClick={() =>
+                  alert("Próximamente: generador de documentos con plantillas de la oficina.")
+                }
+              >
                 Crear
               </button>
             </div>
@@ -67,12 +74,16 @@ export default function Documentos() {
           {/* Cargar documento: abre file picker y manda al escáner */}
           <div className="stat-card">
             <div className="stat-head">Importar</div>
-            <div className="stat-value" style={{ fontSize: 24 }}>Cargar documento</div>
+            <div className="stat-value" style={{ fontSize: 24 }}>
+              Cargar documento
+            </div>
             <p className="muted" style={{ marginTop: 6 }}>
-              Sube imágenes (JPG/PNG) y optimizalas con el escáner.
+              Subí imágenes (JPG/PNG) y optimizalas con el escáner.
             </p>
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-              <button className="btn" onClick={onPickFiles}>Elegir imágenes</button>
+              <button className="btn" onClick={onPickFiles}>
+                Elegir imágenes
+              </button>
               <input
                 ref={fileRef}
                 type="file"
@@ -87,13 +98,19 @@ export default function Documentos() {
           {/* Escanear: abre modal vacío */}
           <div className="stat-card">
             <div className="stat-head">Escáner</div>
-            <div className="stat-value" style={{ fontSize: 24 }}>Escanear</div>
+            <div className="stat-value" style={{ fontSize: 24 }}>
+              Escanear
+            </div>
             <p className="muted" style={{ marginTop: 6 }}>
               Abre el escáner en una ventana flotante.
             </p>
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-              <button className="btn btn-primary" onClick={openScanEmpty}>Abrir escáner</button>
-              <Link className="btn" to="/documentos/escaner">Ir a /documentos/escaner</Link>
+              <button className="btn btn-primary" onClick={openScanEmpty}>
+                Abrir escáner
+              </button>
+              <Link className="btn" to="/documentos/escaner">
+                Ir a /documentos/escaner
+              </Link>
             </div>
           </div>
         </div>
@@ -109,11 +126,16 @@ export default function Documentos() {
               marginTop: 12,
             }}
           >
-            {[1,2,3].map((i) => (
+            {[1, 2, 3].map((i) => (
               <div key={i} className="card">
                 <div style={{ fontWeight: 700 }}>Documento {i}</div>
                 <div className="muted">A4 · 2 páginas · Hoy 11:2{i}</div>
-                <div className="mini-bars"><span></span><span></span><span></span><span></span></div>
+                <div className="mini-bars">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
                 <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                   <button className="btn">Abrir</button>
                   <button className="btn">Compartir</button>
@@ -125,6 +147,8 @@ export default function Documentos() {
 
         <div className="footer-muted" style={{ marginTop: 12 }}>
           Próximamente: OCR, plantillas automáticas y firma digital.
+          <br />
+          Para imágenes de redes, usá la sección <strong>Redes</strong> en la barra lateral.
         </div>
       </div>
 
