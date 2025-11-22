@@ -82,7 +82,7 @@ a {
 }
 
 .app-content {
-  max-width: 1200px;
+  max-width: 1400px; /* ⬅️ antes 1200px → ~20% más ancho */
   margin: 0 auto;
 }
 
@@ -107,7 +107,7 @@ a {
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  justify-content: space-between; /* logo bien a la izq, usuario bien a la der */
+  justify-content: space-between;
   gap: 1rem;
 }
 
@@ -178,7 +178,13 @@ a {
   transform: translateY(-1px);
 }
 
-/* Derecha: usuario */
+/* Derecha: usuario + campanita + etc */
+.app-header__right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 .app-header__user {
   display: flex;
   align-items: center;
@@ -210,8 +216,6 @@ a {
   color: var(--inmovia-text-muted);
 }
 
-
-
 /* ===========================
    LANDING (Home.jsx)
    =========================== */
@@ -238,7 +242,6 @@ a {
   z-index: 0;
 }
 
-
 .landing__inner {
   position: relative;
   z-index: 1;
@@ -247,14 +250,11 @@ a {
   text-align: center;
   padding: 2.5rem 2rem;
   border-radius: 2rem;
-
-  /* Nuevo estilo acorde al tema claro */
   background: linear-gradient(135deg, #ffffff, #e3edff);
   border: 1px solid rgba(148, 163, 184, 0.65);
   box-shadow:
     0 26px 60px rgba(15, 23, 42, 0.25),
     0 0 0 1px rgba(59, 130, 246, 0.18);
-
   color: #0f172a;
 }
 
@@ -264,19 +264,15 @@ a {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   margin: 0 0 1.25rem;
-  color: #0f172a;        /* texto oscuro sobre card clara */
+  color: #0f172a;
 }
 
 .landing__tagline {
   margin-top: 1.3rem;
   font-size: 0.98rem;
   opacity: 0.9;
-  color: #4b5563;        /* gris suave */
+  color: #4b5563;
 }
-
-
-
-
 
 .landing__cta {
   display: inline-flex;
@@ -290,7 +286,6 @@ a {
   font-size: 0.98rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-
   background: linear-gradient(135deg, #2563eb, #4f46e5);
   color: #f9fafb;
   box-shadow: 0 14px 32px rgba(37, 99, 235, 0.55);
@@ -307,14 +302,6 @@ a {
 .landing__cta:active {
   transform: translateY(1px);
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.6);
-}
-
-
-.landing__tagline {
-  margin-top: 1.5rem;
-  font-size: 0.98rem;
-  opacity: 0.85;
-  color: #cbd5f5;
 }
 
 /* ===========================
@@ -375,7 +362,6 @@ a {
   box-shadow: 0 0 0 1px rgba(191, 219, 254, 0.9);
   overflow: hidden;
 }
-
 
 .sidebar__link-label {
   white-space: nowrap;
@@ -440,7 +426,7 @@ a {
   box-shadow:
     0 0 0 1px rgba(22, 163, 74, 0.95),
     0 0 12px rgba(34, 197, 94, 0.75);
-  font-size: 1.05rem; /* 📞 un poco más grande */
+  font-size: 1.05rem;
 }
 
 /* Ivo-t: robotito usando el logo oficial */
@@ -453,10 +439,8 @@ a {
   box-shadow:
     0 0 0 1px rgba(37, 99, 235, 0.95),
     0 0 14px rgba(37, 99, 235, 0.85);
-  color: transparent; /* no texto dentro */
+  color: transparent;
 }
-
-
 
 /* ===========================
    PÁGINAS INTERNAS
@@ -477,7 +461,6 @@ a {
     transform: translateX(0) translateY(0) scale(1);
   }
 }
-
 
 /* Panel principal claro (estilo CRM) */
 .glass-panel {
@@ -674,7 +657,6 @@ a {
     0 0 0 2px rgba(191, 219, 254, 0.9);
 }
 
-
 /* ===========================
    CHAT FLOTANTE IVO-T
    =========================== */
@@ -728,7 +710,6 @@ a {
     0 0 0 1px rgba(219, 234, 254, 0.9),
     0 0 12px rgba(191, 219, 254, 0.8);
 }
-
 
 .ivot-chat__title {
   font-size: 0.9rem;
@@ -796,15 +777,38 @@ a {
 
 /* ====== Agenda & Recordatorios (Inmovia Office) ====== */
 
+/* Contenedor general de la página de Agenda */
 .page-inner.agenda-page {
-  display: flex;
-  justify-content: center;
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
   padding: 2.5rem 1.5rem 3.25rem;
 }
 
+/* Layout: calendario a la izquierda + tarjeta principal a la derecha */
+.agenda-layout {
+  display: flex;
+  gap: 1.8rem;
+  align-items: flex-start;
+  margin-top: 1.8rem;
+}
+
+/* Tarjeta de calendario lateral */
+.agenda-calendar-pane {
+  width: 380px;
+  flex-shrink: 0;
+  background: #ffffff;
+  border-radius: 22px;
+  padding: 1.2rem 1.4rem 1.4rem;
+  box-shadow: 0 22px 55px rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+/* Tarjeta principal de Agenda & Recordatorios (más ancha) */
 .agenda-card {
+  flex: 1;
   width: 100%;
-  max-width: 980px;
+  max-width: none;
   border-radius: 2rem;
   background: rgba(255, 255, 255, 0.94);
   box-shadow: 0 24px 60px rgba(24, 68, 130, 0.18);
@@ -812,6 +816,7 @@ a {
   padding: 2.1rem 2.4rem 2.4rem;
 }
 
+/* Encabezado de la tarjeta */
 .agenda-header {
   margin-bottom: 1.75rem;
 }
@@ -830,24 +835,16 @@ a {
   max-width: 34rem;
 }
 
+/* Dos columnas dentro de la tarjeta: estado/lista + formulario */
 .agenda-content {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1.15fr);
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1.15fr);
   gap: 1.9rem;
   align-items: flex-start;
 }
 
 .agenda-column {
   min-width: 0;
-}
-
-@media (max-width: 960px) {
-  .agenda-card {
-    padding: 1.6rem 1.5rem 1.9rem;
-  }
-  .agenda-content {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* -- Estado de conexión -- */
@@ -1101,15 +1098,28 @@ a {
   gap: 0.25rem;
 }
 
+/* Fila combinada fecha + horas */
 .agenda-form-row-inline {
+  display: flex;
   flex-direction: row;
   align-items: flex-end;
-  gap: 0.7rem;
+  gap: 0.9rem;
 }
 
 .agenda-form-field {
   flex: 1;
   min-width: 0;
+}
+
+/* La primera columna (Fecha) ocupa más espacio que las horas */
+.agenda-form-row-inline .agenda-form-field:first-child {
+  flex: 1.7;
+}
+
+/* Aseguramos que el input de fecha use todo el ancho disponible */
+.agenda-form-field input[type="date"] {
+  width: 100%;
+  font-size: 0.85rem;
 }
 
 @media (max-width: 640px) {
@@ -1213,6 +1223,216 @@ a {
   border: 1px solid rgba(248, 113, 113, 0.8);
 }
 
+/* -- Mini calendario + filtros (columna izquierda) -- */
+
+.agenda-calendar-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.agenda-calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.agenda-calendar-nav {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.agenda-calendar-nav button {
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.7);
+  background: #ffffff;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.agenda-calendar-nav button:hover {
+  background: rgba(37, 99, 235, 0.06);
+  border-color: rgba(37, 99, 235, 0.7);
+}
+
+.agenda-calendar-month {
+  margin-top: 0.35rem;
+  margin-bottom: 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-transform: capitalize;
+  color: #4b5563;
+}
+
+/* Filtro de tipo */
+
+.agenda-filter {
+  margin-bottom: 0.85rem;
+}
+
+.agenda-filter-label {
+  display: block;
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-bottom: 0.25rem;
+}
+
+.agenda-filter-select {
+  width: 100%;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.8);
+  padding: 0.45rem 0.8rem;
+  font-size: 0.8rem;
+  background: #ffffff;
+}
+
+/* Calendario visual */
+
+.agenda-calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.3rem;
+  margin-bottom: 0.25rem;
+}
+
+.agenda-cal-weekday {
+  text-align: center;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #9ca3af;
+}
+
+.agenda-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.3rem;
+  margin-bottom: 0.9rem;
+}
+
+.agenda-cal-day {
+  border: none;
+  background: transparent;
+  border-radius: 999px;
+  aspect-ratio: 1 / 1;
+  font-size: 0.85rem;
+  cursor: default;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #0f172a;
+}
+
+.agenda-cal-day-number {
+  line-height: 1;
+}
+
+.agenda-cal-day--today {
+  outline: 1px solid rgba(37, 99, 235, 0.7);
+  outline-offset: 1px;
+}
+
+.agenda-cal-day--selected {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.agenda-cal-day--selected .agenda-cal-dot {
+  background: #bbf7d0;
+}
+
+.agenda-cal-day--empty {
+  visibility: hidden;
+}
+
+.agenda-cal-day:not(.agenda-cal-day--empty) {
+  cursor: pointer;
+}
+
+.agenda-cal-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: #22c55e;
+  margin-top: 2px;
+}
+
+.agenda-cal-dot--legend {
+  margin-right: 0.35rem;
+}
+
+/* Pie del calendario */
+
+.agenda-calendar-legend {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.agenda-legend-item {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.7rem;
+  color: #6b7280;
+}
+
+.agenda-clear-filters {
+  border: none;
+  background: transparent;
+  color: #2563eb;
+  font-size: 0.7rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* Chip de filtro activo encima de la lista */
+
+.agenda-filter-chip {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-top: 0.15rem;
+}
+
+.agenda-filter-chip-strong {
+  font-weight: 600;
+  color: #111827;
+}
+
+/* Responsive: en pantallas chicas el calendario pasa arriba y la card se adapta */
+
+@media (max-width: 1024px) {
+  .agenda-layout {
+    flex-direction: column;
+    margin-top: 1rem;
+  }
+
+  .agenda-calendar-pane {
+    width: 100%;
+  }
+}
+
+@media (max-width: 960px) {
+  .page-inner.agenda-page {
+    max-width: 100%;
+    padding: 1.8rem 1.2rem 2.3rem;
+  }
+
+  .agenda-card {
+    padding: 1.6rem 1.5rem 1.9rem;
+  }
+
+  .agenda-content {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ====== Notificaciones (campanita header) ====== */
 
 .notif-wrapper {
@@ -1269,11 +1489,11 @@ a {
   box-shadow: 0 0 0 2px #e5f0ff;
 }
 
-/* Panel flotante */
+/* Panel flotante de notificaciones */
 
 .notif-panel {
-  position: fixed;            /* 🔴 Antes era absolute: ahora fija en viewport */
-  top: 64px;                  /* Ajusta según la altura real de tu header */
+  position: fixed;
+  top: 64px;
   right: 16px;
   width: 320px;
   max-height: 420px;
@@ -1286,7 +1506,6 @@ a {
   flex-direction: column;
   overflow: hidden;
 }
-
 
 @media (max-width: 640px) {
   .notif-panel {
@@ -1425,9 +1644,4 @@ a {
   background: rgba(55, 65, 81, 0.1);
   border-color: rgba(55, 65, 81, 0.4);
   color: #374151;
-}
-.app-header__right {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
 }
