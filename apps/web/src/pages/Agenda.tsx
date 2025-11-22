@@ -12,22 +12,34 @@ interface AgendaEvent {
   agent?: string;
 }
 
-// Base de la API
+// Base de la API (dev: localhost:3001)
 const API_BASE =
-  (import.meta as any).env.VITE_API_BASE_URL ||
-  (window.location.hostname === "localhost"
-    ? "http://localhost:3001"
-    : "");
+  (import.meta as any).env.VITE_API_BASE_URL || "";
 
+// Si API_BASE está definido -> http://localhost:3001/api/...
+// Si no, usamos el path tal cual (útil si más adelante usamos proxy de Vite)
 function apiUrl(path: string) {
-  // Si API_BASE está definido -> http://localhost:3001/api/...
-  // Si no, usamos el mismo host (ej: proxy de Vite en el futuro)
   if (API_BASE) return `${API_BASE}${path}`;
   return path;
 }
 
-console.log("🔧 Agenda usando API_BASE =", API_BASE);
+const FALLBACK_EVENT_TYPES = [
+  "Visita con comprador",
+  "Visita de captación",
+  "Llamada de seguimiento",
+  "Reunión interna",
+  "Firma de reserva / boleto",
+  "Post-venta / aniversario",
+  "Otro",
+];
 
+interface CalendarCell {
+  key: string;
+  date?: string;
+  dayNumber?: number;
+  isToday?: boolean;
+  hasEvents?: boolean;
+}
 
 const Agenda: React.FC = () => {
   const [status, setStatus] = useState<CalendarStatus>("checking");
@@ -49,6 +61,13 @@ const Agenda: React.FC = () => {
     detail: "",
     agent: "",
   });
+
+  // 🗓️ Filtro de fecha y tipo
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>("todos");
+
+  // Mes mostrado en el mini calendario de la izquierda
+  const [calendarMonth, setCalendarMonth] = useState<Date>(() => new Date());
 
   useEffect(() => {
     loadStatus();
@@ -196,234 +215,445 @@ const Agenda: React.FC = () => {
     return "";
   }
 
+  // 🗓️ ---- Lógica del mini calendario + filtros ----
+
+  const todayIso = new Date().toISOString().slice(0, 10);
+
+  function buildCalendarCells(): CalendarCell[] {
+    const cells: CalendarCell[] = [];
+
+    const year = calendarMonth.getFullYear();
+    const month = calendarMonth.getMonth(); // 0-11
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+
+    // Queremos que la semana arranque en lunes
+    const firstWeekday = (firstDay.getDay() + 6) % 7; // 0=lunes, 6=domingo
+
+    // Celdas vacías antes del día 1
+    for (let i = 0; i < firstWeekday; i++) {
+      cells.push({ key: `empty-${i}` });
+    }
+
+    // Días del mes
+    for (let day = 1; day <= lastDay.getDate(); day++) {
+      const dateObj = new Date(year, month, day);
+      const iso = dateObj.toISOString().slice(0, 10);
+
+      const hasEvents = events.some((ev) => ev.date === iso);
+      const isToday = iso === todayIso;
+
+      cells.push({
+        key: iso,
+        date: iso,
+        dayNumber: day,
+        hasEvents,
+        isToday,
+      });
+    }
+
+    return cells;
+  }
+
+  const calendarCells = buildCalendarCells();
+
+  function handleCalendarDayClick(dateStr: string) {
+    setSelectedDate((prev) => (prev === dateStr ? null : dateStr));
+  }
+
+  function changeMonth(offset: number) {
+    setCalendarMonth((prev) => {
+      const d = new Date(prev);
+      d.setMonth(prev.getMonth() + offset);
+      return d;
+    });
+  }
+
+  const monthLabel = new Intl.DateTimeFormat("es-AR", {
+    month: "long",
+    year: "numeric",
+  }).format(calendarMonth);
+
+  // Tipos disponibles para el filtro (dinámicos + fallback)
+  const dynamicTypes = Array.from(
+    new Set(
+      events
+        .map((ev) => ev.type)
+        .filter((t): t is string => !!t && t.trim().length > 0)
+    )
+  );
+
+  const typeOptions =
+    dynamicTypes.length > 0 ? dynamicTypes : FALLBACK_EVENT_TYPES;
+
+  // Aplicar filtros sobre los eventos
+  const filteredEvents = events.filter((ev) => {
+    const matchesType =
+      selectedTypeFilter === "todos" ||
+      (ev.type || "") === selectedTypeFilter;
+
+    const matchesDate =
+      !selectedDate || ev.date === selectedDate;
+
+    return matchesType && matchesDate;
+  });
+
+  function clearFilters() {
+    setSelectedDate(null);
+    setSelectedTypeFilter("todos");
+  }
+
+  const selectedDateLabel = selectedDate
+    ? new Date(selectedDate + "T00:00:00").toLocaleDateString("es-AR", {
+        weekday: "long",
+        day: "2-digit",
+        month: "long",
+      })
+    : null;
+
   return (
     <div className="page-inner agenda-page">
-      <div className="agenda-card">
-        <header className="agenda-header">
-          <h1 className="agenda-title">Agenda &amp; Recordatorios</h1>
-          <p className="agenda-subtitle">
-            Sincronizada con Google Calendar de la cuenta del Owner. Usamos esta agenda como
-            fuente principal para visitas, llamadas, cumpleaños y aniversarios.
-          </p>
-        </header>
-
-        <div className="agenda-content">
-          {/* Columna izquierda */}
-          <section className="agenda-column agenda-column-left">
-            <div className="agenda-status-card">
-              <div className="agenda-status-top">
-                <div>
-                  <span className={statusChipClass()}>
-                    <span className="agenda-chip-dot" />
-                    {statusText()}
-                  </span>
-                  {statusMessage && (
-                    <p className="agenda-status-message">{statusMessage}</p>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  className="agenda-reconnect-btn"
-                  onClick={handleReconnect}
-                >
-                  {status === "connected" ? "Reconectar cuenta" : "Conectar cuenta"}
-                </button>
-              </div>
-
-              <p className="agenda-status-footnote">
-                La conexión se realiza solo con la cuenta del Owner. Los agentes usan esta agenda
-                compartida para ver sus próximos compromisos.
-              </p>
-            </div>
-
-            <div className="agenda-events">
-              <div className="agenda-section-header">
-                <h2 className="agenda-section-title">Próximos 7 días</h2>
-                <span className="agenda-section-badge">
-                  {events.length} {events.length === 1 ? "evento" : "eventos"}
-                </span>
-              </div>
-
-              {loadingEvents ? (
-                <p className="agenda-text-muted">Cargando eventos...</p>
-              ) : events.length === 0 ? (
-                <p className="agenda-empty">
-                  No hay eventos próximos en el calendario. Crea tu primera visita, entrevista o
-                  recordatorio desde el panel de la derecha.
-                </p>
-              ) : (
-                <ul className="agenda-events-list">
-                  {events.map((ev) => (
-                    <li key={ev.id} className="agenda-event-item">
-                      <div className="agenda-event-date">{formatDateLabel(ev.date)}</div>
-                      <div className="agenda-event-main">
-                        <div className="agenda-event-title">{ev.summary}</div>
-                        <div className="agenda-event-meta">
-                          {ev.startTime && ev.endTime && (
-                            <span>
-                              {ev.startTime} - {ev.endTime}
-                            </span>
-                          )}
-                          {ev.type && (
-                            <span className="agenda-event-pill">{ev.type}</span>
-                          )}
-                          {ev.agent && (
-                            <span>👤 {ev.agent}</span>
-                          )}
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </section>
-
-          {/* Columna derecha */}
-          <section className="agenda-column agenda-column-right">
-            <div className="agenda-form-header">
-              <h2 className="agenda-section-title">Agregar evento</h2>
-              <p className="agenda-text-muted">
-                Crea rápidamente visitas, entrevistas, firmas de contrato o recordatorios
-                importantes. Se guardarán directamente en tu Google Calendar.
-              </p>
-            </div>
-
-            {feedback && (
-              <div
-                className={
-                  feedback.type === "ok"
-                    ? "agenda-feedback agenda-feedback--ok"
-                    : "agenda-feedback agenda-feedback--error"
-                }
+      <div className="agenda-layout">
+        {/* Columna izquierda: mini calendario + filtros */}
+        <aside className="agenda-calendar-pane">
+          <div className="agenda-calendar-header">
+            <h2 className="agenda-calendar-title">Calendario</h2>
+            <div className="agenda-calendar-nav">
+              <button
+                type="button"
+                onClick={() => changeMonth(-1)}
+                aria-label="Mes anterior"
               >
-                {feedback.msg}
-              </div>
-            )}
+                ‹
+              </button>
+              <button
+                type="button"
+                onClick={() => changeMonth(1)}
+                aria-label="Mes siguiente"
+              >
+                ›
+              </button>
+            </div>
+          </div>
 
-            <form className="agenda-form" onSubmit={handleSubmit}>
-              <div className="agenda-form-row">
-                <label className="agenda-label" htmlFor="title">
-                  Título
-                </label>
-                <input
-                  id="title"
-                  name="title"
-                  type="text"
-                  className="agenda-input"
-                  placeholder="Visita a propiedad, entrevista, firma de contrato..."
-                  value={form.title}
-                  onChange={handleChange}
-                />
-              </div>
+          <p className="agenda-calendar-month">{monthLabel}</p>
 
-              <div className="agenda-form-row">
-                <label className="agenda-label" htmlFor="type">
-                  Tipo de evento
-                </label>
-                <select
-                  id="type"
-                  name="type"
-                  className="agenda-input"
-                  value={form.type}
-                  onChange={handleChange}
-                >
-                  <option value="Visita con comprador">Visita con comprador</option>
-                  <option value="Visita de captación">Visita de captación</option>
-                  <option value="Llamada de seguimiento">Llamada de seguimiento</option>
-                  <option value="Reunión interna">Reunión interna</option>
-                  <option value="Firma de reserva / boleto">Firma de reserva / boleto</option>
-                  <option value="Post-venta / aniversario">Post-venta / aniversario</option>
-                  <option value="Otro">Otro</option>
-                </select>
-              </div>
+          <div className="agenda-filter">
+            <label className="agenda-filter-label" htmlFor="typeFilter">
+              Tipo de evento
+            </label>
+            <select
+              id="typeFilter"
+              className="agenda-filter-select"
+              value={selectedTypeFilter}
+              onChange={(e) => setSelectedTypeFilter(e.target.value)}
+            >
+              <option value="todos">Todos los tipos</option>
+              {typeOptions.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
 
-              <div className="agenda-form-row">
-                <label className="agenda-label" htmlFor="agent">
-                  Agente responsable
-                </label>
-                <input
-                  id="agent"
-                  name="agent"
-                  type="text"
-                  className="agenda-input"
-                  placeholder="Nombre del agente (ej: Juan Pérez)"
-                  value={form.agent}
-                  onChange={handleChange}
-                />
-              </div>
+          <div className="agenda-calendar-weekdays">
+            {["L", "M", "X", "J", "V", "S", "D"].map((d) => (
+              <span key={d} className="agenda-cal-weekday">
+                {d}
+              </span>
+            ))}
+          </div>
 
-              <div className="agenda-form-row agenda-form-row-inline">
-                <div className="agenda-form-field">
-                  <label className="agenda-label" htmlFor="date">
-                    Fecha
-                  </label>
-                  <input
-                    id="date"
-                    name="date"
-                    type="date"
-                    className="agenda-input"
-                    value={form.date}
-                    onChange={handleChange}
-                  />
-                </div>
-                <div className="agenda-form-field">
-                  <label className="agenda-label" htmlFor="startTime">
-                    Desde
-                  </label>
-                  <input
-                    id="startTime"
-                    name="startTime"
-                    type="time"
-                    className="agenda-input"
-                    value={form.startTime}
-                    onChange={handleChange}
-                  />
-                </div>
-                <div className="agenda-form-field">
-                  <label className="agenda-label" htmlFor="endTime">
-                    Hasta
-                  </label>
-                  <input
-                    id="endTime"
-                    name="endTime"
-                    type="time"
-                    className="agenda-input"
-                    value={form.endTime}
-                    onChange={handleChange}
-                  />
-                </div>
-              </div>
-
-              <div className="agenda-form-row">
-                <label className="agenda-label" htmlFor="detail">
-                  Detalle (opcional)
-                </label>
-                <textarea
-                  id="detail"
-                  name="detail"
-                  className="agenda-input agenda-textarea"
-                  placeholder="Dirección de la propiedad, nombre del cliente, notas internas..."
-                  rows={3}
-                  value={form.detail}
-                  onChange={handleChange}
-                />
-              </div>
-
-              <div className="agenda-form-footer">
-                <span className="agenda-text-muted">
-                  El evento se creará en Google Calendar de Inmovia Office.
-                </span>
+          <div className="agenda-cal-grid">
+            {calendarCells.map((cell) =>
+              cell.date ? (
                 <button
-                  type="submit"
-                  className="agenda-submit-btn"
-                  disabled={saving || status === "checking"}
+                  key={cell.key}
+                  type="button"
+                  className={[
+                    "agenda-cal-day",
+                    cell.isToday ? "agenda-cal-day--today" : "",
+                    selectedDate === cell.date ? "agenda-cal-day--selected" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  onClick={() => handleCalendarDayClick(cell.date!)}
                 >
-                  {saving ? "Guardando..." : "Guardar evento"}
+                  <span className="agenda-cal-day-number">
+                    {cell.dayNumber}
+                  </span>
+                  {cell.hasEvents && (
+                    <span className="agenda-cal-dot" aria-hidden="true" />
+                  )}
                 </button>
+              ) : (
+                <span
+                  key={cell.key}
+                  className="agenda-cal-day agenda-cal-day--empty"
+                />
+              )
+            )}
+          </div>
+
+          <div className="agenda-calendar-legend">
+            <span className="agenda-legend-item">
+              <span className="agenda-cal-dot agenda-cal-dot--legend" /> Con
+              eventos
+            </span>
+            <button
+              type="button"
+              className="agenda-clear-filters"
+              onClick={clearFilters}
+            >
+              Limpiar filtros
+            </button>
+          </div>
+        </aside>
+
+        {/* Columna principal: estado + lista + formulario */}
+        <div className="agenda-card">
+          <header className="agenda-header">
+            <h1 className="agenda-title">Agenda &amp; Recordatorios</h1>
+            <p className="agenda-subtitle">
+              Sincronizada con Google Calendar de la cuenta del Owner. Usamos
+              esta agenda como fuente principal para visitas, llamadas,
+              cumpleaños y aniversarios.
+            </p>
+          </header>
+
+          <div className="agenda-content">
+            {/* Columna izquierda grande: estado + lista */}
+            <section className="agenda-column agenda-column-left">
+              <div className="agenda-status-card">
+                <div className="agenda-status-top">
+                  <div>
+                    <span className={statusChipClass()}>
+                      <span className="agenda-chip-dot" />
+                      {statusText()}
+                    </span>
+                    {statusMessage && (
+                      <p className="agenda-status-message">{statusMessage}</p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="agenda-reconnect-btn"
+                    onClick={handleReconnect}
+                  >
+                    {status === "connected" ? "Reconectar cuenta" : "Conectar cuenta"}
+                  </button>
+                </div>
+
+                <p className="agenda-status-footnote">
+                  La conexión se realiza solo con la cuenta del Owner. Los
+                  agentes usan esta agenda compartida para ver sus próximos
+                  compromisos.
+                </p>
               </div>
-            </form>
-          </section>
+
+              <div className="agenda-events">
+                <div className="agenda-section-header">
+                  <div>
+                    <h2 className="agenda-section-title">Próximos 7 días</h2>
+                    {selectedDateLabel && (
+                      <p className="agenda-filter-chip">
+                        Filtrando por{" "}
+                        <span className="agenda-filter-chip-strong">
+                          {selectedDateLabel}
+                        </span>
+                      </p>
+                    )}
+                  </div>
+                  <span className="agenda-section-badge">
+                    {filteredEvents.length}{" "}
+                    {filteredEvents.length === 1 ? "evento" : "eventos"}
+                  </span>
+                </div>
+
+                {loadingEvents ? (
+                  <p className="agenda-text-muted">Cargando eventos...</p>
+                ) : filteredEvents.length === 0 ? (
+                  <p className="agenda-empty">
+                    No hay eventos próximos que coincidan con el filtro
+                    seleccionado. Crea tu primera visita, entrevista o
+                    recordatorio desde el panel de la derecha.
+                  </p>
+                ) : (
+                  <ul className="agenda-events-list">
+                    {filteredEvents.map((ev) => (
+                      <li key={ev.id} className="agenda-event-item">
+                        <div className="agenda-event-date">
+                          {formatDateLabel(ev.date)}
+                        </div>
+                        <div className="agenda-event-main">
+                          <div className="agenda-event-title">{ev.summary}</div>
+                          <div className="agenda-event-meta">
+                            {ev.startTime && ev.endTime && (
+                              <span>
+                                {ev.startTime} - {ev.endTime}
+                              </span>
+                            )}
+                            {ev.type && (
+                              <span className="agenda-event-pill">
+                                {ev.type}
+                              </span>
+                            )}
+                            {ev.agent && <span>👤 {ev.agent}</span>}
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </section>
+
+            {/* Columna derecha: formulario */}
+            <section className="agenda-column agenda-column-right">
+              <div className="agenda-form-header">
+                <h2 className="agenda-section-title">Agregar evento</h2>
+                <p className="agenda-text-muted">
+                  Crea rápidamente visitas, entrevistas, firmas de contrato o
+                  recordatorios importantes. Se guardarán directamente en tu
+                  Google Calendar.
+                </p>
+              </div>
+
+              {feedback && (
+                <div
+                  className={
+                    feedback.type === "ok"
+                      ? "agenda-feedback agenda-feedback--ok"
+                      : "agenda-feedback agenda-feedback--error"
+                  }
+                >
+                  {feedback.msg}
+                </div>
+              )}
+
+              <form className="agenda-form" onSubmit={handleSubmit}>
+                <div className="agenda-form-row">
+                  <label className="agenda-label" htmlFor="title">
+                    Título
+                  </label>
+                  <input
+                    id="title"
+                    name="title"
+                    type="text"
+                    className="agenda-input"
+                    placeholder="Visita a propiedad, entrevista, firma de contrato..."
+                    value={form.title}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <div className="agenda-form-row">
+                  <label className="agenda-label" htmlFor="type">
+                    Tipo de evento
+                  </label>
+                  <select
+                    id="type"
+                    name="type"
+                    className="agenda-input"
+                    value={form.type}
+                    onChange={handleChange}
+                  >
+                    {FALLBACK_EVENT_TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="agenda-form-row">
+                  <label className="agenda-label" htmlFor="agent">
+                    Agente responsable
+                  </label>
+                  <input
+                    id="agent"
+                    name="agent"
+                    type="text"
+                    className="agenda-input"
+                    placeholder="Nombre del agente (ej: Juan Pérez)"
+                    value={form.agent}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <div className="agenda-form-row agenda-form-row-inline">
+                  <div className="agenda-form-field">
+                    <label className="agenda-label" htmlFor="date">
+                      Fecha
+                    </label>
+                    <input
+                      id="date"
+                      name="date"
+                      type="date"
+                      className="agenda-input"
+                      value={form.date}
+                      onChange={handleChange}
+                    />
+                  </div>
+                  <div className="agenda-form-field">
+                    <label className="agenda-label" htmlFor="startTime">
+                      Desde
+                    </label>
+                    <input
+                      id="startTime"
+                      name="startTime"
+                      type="time"
+                      className="agenda-input"
+                      value={form.startTime}
+                      onChange={handleChange}
+                    />
+                  </div>
+                  <div className="agenda-form-field">
+                    <label className="agenda-label" htmlFor="endTime">
+                      Hasta
+                    </label>
+                    <input
+                      id="endTime"
+                      name="endTime"
+                      type="time"
+                      className="agenda-input"
+                      value={form.endTime}
+                      onChange={handleChange}
+                    />
+                  </div>
+                </div>
+
+                <div className="agenda-form-row">
+                  <label className="agenda-label" htmlFor="detail">
+                    Detalle (opcional)
+                  </label>
+                  <textarea
+                    id="detail"
+                    name="detail"
+                    className="agenda-input agenda-textarea"
+                    placeholder="Dirección de la propiedad, nombre del cliente, notas internas..."
+                    rows={3}
+                    value={form.detail}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <div className="agenda-form-footer">
+                  <span className="agenda-text-muted">
+                    El evento se creará en Google Calendar de Inmovia Office.
+                  </span>
+                  <button
+                    type="submit"
+                    className="agenda-submit-btn"
+                    disabled={saving || status === "checking"}
+                  >
+                    {saving ? "Guardando..." : "Guardar evento"}
+                  </button>
+                </div>
+              </form>
+            </section>
+          </div>
         </div>
       </div>
     </div>
