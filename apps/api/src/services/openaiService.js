@@ -1,71 +1,50 @@
+// apps/api/src/services/openaiService.js
 const OpenAI = require("openai");
 
-// Lazy-load OpenAI client
-let openai = null;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-function getOpenAIClient() {
-    if (!openai) {
-        const apiKey = process.env.OPENAI_API_KEY;
-        if (!apiKey) {
-            throw new Error("OPENAI_API_KEY not set in environment variables.");
-        }
-        openai = new OpenAI({ apiKey });
-    }
-    return openai;
+// Validar que la API key exista (para log claro en Render)
+if (!OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY is not set in environment variables");
 }
 
-const SYSTEM_PROMPT = `
-Sos Ivo-t, el asistente virtual inteligente de Inmovia Office.
-Tu objetivo es ayudar a agentes inmobiliarios con tareas diarias.
-
-Tono: Profesional pero cercano, eficiente y proactivo.
-Idioma: Español (Argentina).
-
-Capacidades actuales (simuladas):
-- Responder preguntas sobre procesos inmobiliarios.
-- Redactar textos para redes sociales o emails.
-- Agendar citas (simulado).
-
-Si te preguntan algo fuera de tu conocimiento, aclaralo amablemente.
-Trata de ser conciso.
-`;
+// Cliente oficial de OpenAI
+const client = new OpenAI({
+    apiKey: OPENAI_API_KEY,
+});
 
 /**
- * Envía un mensaje a OpenAI y retorna la respuesta.
- * @param {Array} history - Historial de mensajes [{role: 'user'|'assistant', content: '...'}]
- * @param {boolean} [useHighIntelligence=false] - Si es true, usa gpt-5.1. Si es false, usa gpt-5.1-mini.
+ * history: array de mensajes tipo:
+ *  [{ role: "user" | "assistant" | "system", content: "texto" }]
+ * useHighIntelligence: si true usa modelo más potente/caro.
  */
 async function getChatResponse(history, useHighIntelligence = false) {
-    try {
-        // Intentamos obtener el cliente. Si falla (no key), saltamos al catch.
-        const client = getOpenAIClient();
+    // Modelo base: económico para uso normal, otro para modo “potente”
+    const model = useHighIntelligence ? "gpt-4.1" : "gpt-4o-mini";
 
-        // Validar historial básico
-        const messages = [
-            { role: "system", content: SYSTEM_PROMPT },
-            ...history,
-        ];
+    // Podés ajustar este system prompt a tu gusto
+    const systemMessage = {
+        role: "system",
+        content:
+            "Sos Ivo-t, asistente IA de Inmovia Office para una oficina inmobiliaria. " +
+            "Respondé en español, con tono profesional pero cercano, respuestas claras y concretas. " +
+            "Si algo no lo sabés con certeza, explicalo en lugar de inventar.",
+    };
 
-        // Selección de modelo según reglas de Inmovia
-        const model = useHighIntelligence ? "gpt-4o" : "gpt-4o-mini";
+    // Aseguramos que history sea array válido
+    const messages = Array.isArray(history) ? history : [];
+    const allMessages = [systemMessage, ...messages];
 
-        console.log(`[Ivo-t] Usando modelo: ${model}`);
+    const completion = await client.chat.completions.create({
+        model,
+        messages: allMessages,
+    });
 
-        const completion = await client.chat.completions.create({
-            model: model,
-            messages: messages,
-            temperature: 0.7,
-        });
+    const content =
+        completion.choices?.[0]?.message?.content?.trim() ||
+        "No pude generar una respuesta en este momento.";
 
-        return completion.choices[0].message.content;
-    } catch (error) {
-        console.error("Error en openaiService (usando MOCK fallback):", error.message);
-
-        // MOCK FALLBACK para que el usuario pueda probar la UI
-        return "🤖 [Modo Offline] No pude conectar con mi cerebro real (OpenAI), pero estoy acá. \n\n" +
-            "Posibles causas: Falta la API Key en el .env o se agotó el crédito. \n\n" +
-            "Mientras tanto, puedo decirte que el sistema de Inmovia está operativo.";
-    }
+    return content;
 }
 
 module.exports = {
