@@ -111,7 +111,10 @@ export default function IvoT() {
         body: JSON.stringify({ history }),
       });
 
-      if (!response.ok) throw new Error("Error en la respuesta");
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`Error ${response.status}: ${errorData.error || response.statusText}`);
+      }
 
       const data = await response.json();
 
@@ -131,7 +134,7 @@ export default function IvoT() {
       const errorMsg: ChatMsg = {
         id: `e-${Date.now()}`,
         from: "ivo-t",
-        text: "Lo siento, hubo un problema al comunicarme con el servidor de Inmovia. Probá de nuevo en unos segundos.",
+        text: `Error conectando a ${API_URL}: ${error instanceof Error ? error.message : String(error)}`,
         time: new Date().toLocaleTimeString("es-AR", {
           hour: "2-digit",
           minute: "2-digit",

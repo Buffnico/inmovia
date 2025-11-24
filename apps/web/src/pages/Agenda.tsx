@@ -13,14 +13,16 @@ interface AgendaEvent {
 }
 
 // Base de la API (dev: localhost:3001)
-const API_BASE =
-  (import.meta as any).env.VITE_API_BASE_URL || "";
+// Base de la API (dev: localhost:3001/api)
+const API_BASE_URL = (import.meta as any).env.VITE_API_BASE_URL || "http://localhost:3001/api";
 
-// Si API_BASE está definido -> http://localhost:3001/api/...
-// Si no, usamos el path tal cual (útil si más adelante usamos proxy de Vite)
-function apiUrl(path: string) {
-  if (API_BASE) return `${API_BASE}${path}`;
-  return path;
+// Helper para construir URLs de API
+// Maneja casos donde el path ya incluye /api o no
+function apiUrl(endpoint: string) {
+  // Si el endpoint empieza con /api, lo quitamos para evitar duplicados
+  // ya que API_BASE_URL debería incluirlo
+  const cleanEndpoint = endpoint.startsWith("/api") ? endpoint.substring(4) : endpoint;
+  return `${API_BASE_URL}${cleanEndpoint}`;
 }
 
 const FALLBACK_EVENT_TYPES = [

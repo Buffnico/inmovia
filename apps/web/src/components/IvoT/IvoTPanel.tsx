@@ -81,7 +81,10 @@ export const IvoTPanel: React.FC<IvoTPanelProps> = ({ isOpen, onClose }) => {
                 body: JSON.stringify({ history }),
             });
 
-            if (!response.ok) throw new Error("Error en la respuesta");
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(`Error ${response.status}: ${errorData.error || response.statusText}`);
+            }
 
             const data = await response.json();
 
@@ -101,8 +104,7 @@ export const IvoTPanel: React.FC<IvoTPanelProps> = ({ isOpen, onClose }) => {
             const errorMsg: Message = {
                 id: `e-${Date.now()}`,
                 from: "bot",
-                text:
-                    "Lo siento, hubo un problema al comunicarme con el servidor de Inmovia. Probá nuevamente en unos instantes.",
+                text: `Error conectando a ${API_URL}: ${error instanceof Error ? error.message : String(error)}`,
                 time: new Date().toLocaleTimeString("es-AR", {
                     hour: "2-digit",
                     minute: "2-digit",

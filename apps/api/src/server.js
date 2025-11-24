@@ -1,4 +1,6 @@
 ﻿// apps/api/src/server.js
+require("dotenv").config(); // 👈 CARGA .env EN LOCAL
+
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
@@ -21,11 +23,7 @@ app.use(compression());
  */
 app.use(
   cors({
-    origin: [
-      "https://inmovia.vercel.app",
-      "http://localhost:5173",
-      "http://localhost:5174",
-    ],
+    origin: true, // ⚠️ DEV ONLY: Allow all origins to rule out CORS issues
     credentials: true,
   })
 );

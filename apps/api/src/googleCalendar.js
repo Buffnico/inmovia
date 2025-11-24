@@ -139,6 +139,56 @@ function formatEvent(ev) {
   };
 }
 
+// --- CORE FUNCTIONS (Exported) ---
+
+async function createEvent(eventData) {
+  const calendar = getCalendarClient();
+  const result = await calendar.events.insert({
+    calendarId: "primary",
+    requestBody: eventData,
+  });
+  return result.data;
+}
+
+async function updateEvent(eventId, eventData) {
+  const calendar = getCalendarClient();
+  const result = await calendar.events.patch({
+    calendarId: "primary",
+    eventId: eventId,
+    requestBody: eventData,
+  });
+  return result.data;
+}
+
+async function deleteEvent(eventId) {
+  const calendar = getCalendarClient();
+  await calendar.events.delete({
+    calendarId: "primary",
+    eventId: eventId,
+  });
+  return true;
+}
+
+async function listEvents(days = 7) {
+  const calendar = getCalendarClient();
+  const now = new Date();
+  const limit = new Date();
+  limit.setDate(now.getDate() + days);
+
+  const result = await calendar.events.list({
+    calendarId: "primary",
+    timeMin: now.toISOString(),
+    timeMax: limit.toISOString(),
+    singleEvents: true,
+    orderBy: "startTime",
+    maxResults: 50,
+  });
+
+  return (result.data.items || []).map(formatEvent);
+}
+
+// --- ROUTES ---
+
 /**
  * GET /api/calendar/status
  */
@@ -209,24 +259,8 @@ router.get("/oauth2callback", async (req, res) => {
  */
 router.get("/events", async (req, res) => {
   try {
-    const calendar = getCalendarClient();
-
     const days = Number(req.query.days || 7);
-    const now = new Date();
-    const limit = new Date();
-    limit.setDate(now.getDate() + days);
-
-    const result = await calendar.events.list({
-      calendarId: "primary",
-      timeMin: now.toISOString(),
-      timeMax: limit.toISOString(),
-      singleEvents: true,
-      orderBy: "startTime",
-      maxResults: 50,
-    });
-
-    const events = (result.data.items || []).map(formatEvent);
-
+    const events = await listEvents(days);
     res.json({ events });
   } catch (err) {
     console.error("Error listando eventos:", err);
@@ -238,13 +272,9 @@ router.get("/events", async (req, res) => {
 
 /**
  * POST /api/calendar/events
- * Formato nuevo:
- *   { title, type, date, startTime, endTime, detail, agent }
  */
 router.post("/events", async (req, res) => {
   try {
-    const calendar = getCalendarClient();
-
     const {
       summary,
       description,
@@ -290,7 +320,7 @@ router.post("/events", async (req, res) => {
     if (type) privateProps.type = type;
     if (agent) privateProps.agent = agent;
 
-    const event = {
+    const eventData = {
       summary: finalSummary,
       description: finalDescription,
       start: {
@@ -307,12 +337,8 @@ router.post("/events", async (req, res) => {
           : undefined,
     };
 
-    const result = await calendar.events.insert({
-      calendarId: "primary",
-      requestBody: event,
-    });
-
-    res.status(201).json(result.data);
+    const result = await createEvent(eventData);
+    res.status(201).json(result);
   } catch (err) {
     console.error("Error creando evento:", err);
     res.status(err.status || 500).json({
@@ -321,4 +347,10 @@ router.post("/events", async (req, res) => {
   }
 });
 
+// Exportamos router y funciones helper
 module.exports = router;
+module.exports.createEvent = createEvent;
+module.exports.updateEvent = updateEvent;
+module.exports.deleteEvent = deleteEvent;
+module.exports.listEvents = listEvents;
+
