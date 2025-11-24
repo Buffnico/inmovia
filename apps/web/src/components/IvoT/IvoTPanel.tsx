@@ -28,7 +28,12 @@ const INITIAL_MSGS: Message[] = [
     },
 ];
 
-const API_URL = "http://localhost:3001/api/ivot/chat";
+// 🔹 API base: igual que en IvoT.tsx
+const API_BASE_URL =
+    import.meta.env.VITE_API_BASE_URL || "http://localhost:3001/api";
+
+// 🔹 Endpoint de chat de Ivo-t
+const API_URL = `${API_BASE_URL}/ivot/chat`;
 
 export const IvoTPanel: React.FC<IvoTPanelProps> = ({ isOpen, onClose }) => {
     const [messages, setMessages] = useState<Message[]>(INITIAL_MSGS);
@@ -65,17 +70,15 @@ export const IvoTPanel: React.FC<IvoTPanelProps> = ({ isOpen, onClose }) => {
 
         try {
             // Preparar historial para OpenAI
-            const history = messages
-                .concat(userMsg)
-                .map((m) => ({
-                    role: m.from === "user" ? "user" : "assistant",
-                    content: m.text,
-                }));
+            const history = messages.concat(userMsg).map((m) => ({
+                role: m.from === "user" ? "user" : "assistant",
+                content: m.text,
+            }));
 
             const response = await fetch(API_URL, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ history: history }),
+                body: JSON.stringify({ history }),
             });
 
             if (!response.ok) throw new Error("Error en la respuesta");
@@ -98,7 +101,8 @@ export const IvoTPanel: React.FC<IvoTPanelProps> = ({ isOpen, onClose }) => {
             const errorMsg: Message = {
                 id: `e-${Date.now()}`,
                 from: "bot",
-                text: "Lo siento, hubo un problema. Asegurate de que el backend esté ejecutándose.",
+                text:
+                    "Lo siento, hubo un problema al comunicarme con el servidor de Inmovia. Probá nuevamente en unos instantes.",
                 time: new Date().toLocaleTimeString("es-AR", {
                     hour: "2-digit",
                     minute: "2-digit",
@@ -145,9 +149,7 @@ export const IvoTPanel: React.FC<IvoTPanelProps> = ({ isOpen, onClose }) => {
                             className={`ivot-message ${msg.from === "user" ? "ivot-message--user" : "ivot-message--bot"
                                 }`}
                         >
-                            <div className="ivot-message__bubble">
-                                {msg.text}
-                            </div>
+                            <div className="ivot-message__bubble">{msg.text}</div>
                             <div className="ivot-message__time">{msg.time}</div>
                         </div>
                     ))}
@@ -171,7 +173,11 @@ export const IvoTPanel: React.FC<IvoTPanelProps> = ({ isOpen, onClose }) => {
                         onChange={(e) => setInputValue(e.target.value)}
                         disabled={isLoading}
                     />
-                    <button type="submit" className="ivot-chat__send-btn" disabled={isLoading}>
+                    <button
+                        type="submit"
+                        className="ivot-chat__send-btn"
+                        disabled={isLoading}
+                    >
                         <svg
                             width="20"
                             height="20"

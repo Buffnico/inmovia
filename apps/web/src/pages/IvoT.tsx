@@ -56,7 +56,12 @@ const INITIAL_MSGS: ChatMsg[] = [
   },
 ];
 
-const API_URL = "http://localhost:3001/api/ivot/chat";
+// 🔹 API base: lee de VITE_API_BASE_URL y, si no existe, usa localhost.
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:3001/api";
+
+// 🔹 Endpoint de chat de Ivo-t
+const API_URL = `${API_BASE_URL}/ivot/chat`;
 
 export default function IvoT() {
   const [selectedToolId, setSelectedToolId] = useState<string>("chat");
@@ -95,17 +100,15 @@ export default function IvoT() {
 
     try {
       // Preparar historial para OpenAI
-      const history = messages
-        .concat(userMsg)
-        .map((m) => ({
-          role: m.from === "yo" ? "user" : "assistant",
-          content: m.text,
-        }));
+      const history = messages.concat(userMsg).map((m) => ({
+        role: m.from === "yo" ? "user" : "assistant",
+        content: m.text,
+      }));
 
       const response = await fetch(API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ history: history }),
+        body: JSON.stringify({ history }),
       });
 
       if (!response.ok) throw new Error("Error en la respuesta");
@@ -128,7 +131,7 @@ export default function IvoT() {
       const errorMsg: ChatMsg = {
         id: `e-${Date.now()}`,
         from: "ivo-t",
-        text: "Lo siento, hubo un problema. Asegurate de que el backend esté ejecutándose en localhost:3001.",
+        text: "Lo siento, hubo un problema al comunicarme con el servidor de Inmovia. Probá de nuevo en unos segundos.",
         time: new Date().toLocaleTimeString("es-AR", {
           hour: "2-digit",
           minute: "2-digit",
@@ -153,7 +156,16 @@ export default function IvoT() {
       <div className="ivot-page-container">
         {/* Sidebar de Herramientas */}
         <aside className="ivot-sidebar">
-          <div style={{ fontWeight: 600, padding: "0 0.5rem", color: "#64748b", fontSize: "0.85rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+          <div
+            style={{
+              fontWeight: 600,
+              padding: "0 0.5rem",
+              color: "#64748b",
+              fontSize: "0.85rem",
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+            }}
+          >
             Herramientas
           </div>
           {TOOLS.map((tool) => {
@@ -165,7 +177,13 @@ export default function IvoT() {
                 onClick={() => setSelectedToolId(tool.id)}
                 className={`ivot-tool-item ${active ? "active" : ""}`}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    width: "100%",
+                  }}
+                >
                   <span className="ivot-tool-name">{tool.name}</span>
                   {tool.badge && (
                     <span
@@ -188,7 +206,15 @@ export default function IvoT() {
             );
           })}
 
-          <div style={{ marginTop: "auto", padding: "1rem", fontSize: "0.8rem", color: "#94a3b8", textAlign: "center" }}>
+          <div
+            style={{
+              marginTop: "auto",
+              padding: "1rem",
+              fontSize: "0.8rem",
+              color: "#94a3b8",
+              textAlign: "center",
+            }}
+          >
             <p>
               Desde tu perfil de <strong>Owner</strong> vas a poder habilitar o
               deshabilitar estas herramientas.
@@ -205,12 +231,21 @@ export default function IvoT() {
                 <span className="ivot-chat__status-dot"></span>
               </div>
               <div>
-                <div style={{ fontWeight: 700, color: "#0f172a" }}>{selectedTool.name}</div>
+                <div style={{ fontWeight: 700, color: "#0f172a" }}>
+                  {selectedTool.name}
+                </div>
                 <div style={{ fontSize: "0.8rem", color: "#64748b" }}>En línea</div>
               </div>
             </div>
 
-            <div style={{ fontSize: "0.8rem", color: "#94a3b8", maxWidth: "300px", textAlign: "right" }}>
+            <div
+              style={{
+                fontSize: "0.8rem",
+                color: "#94a3b8",
+                maxWidth: "300px",
+                textAlign: "right",
+              }}
+            >
               Conectado a Inmovia Brain v1.0
             </div>
           </header>
@@ -223,9 +258,7 @@ export default function IvoT() {
                 className={`ivot-message ${m.from === "yo" ? "ivot-message--user" : "ivot-message--bot"
                   }`}
               >
-                <div className="ivot-message__bubble">
-                  {m.text}
-                </div>
+                <div className="ivot-message__bubble">{m.text}</div>
                 <div className="ivot-message__time">{m.time}</div>
               </div>
             ))}
@@ -249,7 +282,11 @@ export default function IvoT() {
               onChange={(e) => setDraft(e.target.value)}
               disabled={isLoading}
             />
-            <button type="submit" className="ivot-chat__send-btn" disabled={isLoading}>
+            <button
+              type="submit"
+              className="ivot-chat__send-btn"
+              disabled={isLoading}
+            >
               <svg
                 width="20"
                 height="20"
