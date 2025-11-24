@@ -2,6 +2,7 @@
 import React from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
+import { IvoTPanel } from "./components/IvoT/IvoTPanel";
 
 const App: React.FC = () => {
   const location = useLocation();
@@ -11,6 +12,8 @@ const App: React.FC = () => {
   const [isNotifOpen, setIsNotifOpen] = React.useState(false);
 
   const unreadCount = 3; // mock por ahora
+
+  const isChat = location.pathname === "/chat-interno";
 
   // Landing sin header ni sidebar
   if (isLanding) {
@@ -227,54 +230,13 @@ const App: React.FC = () => {
       {/* Cuerpo: sidebar + contenido */}
       <div className="app-shell">
         <Sidebar />
-        <main className="app-content">
+        <main className={`app-content ${isChat ? "app-content--full" : ""}`}>
           <Outlet />
         </main>
       </div>
 
       {/* Chat flotante de Ivo-t */}
-      {isIvoOpen && (
-        <div className="ivot-chat">
-          <div className="ivot-chat__panel">
-            <header className="ivot-chat__header">
-              <div className="ivot-chat__header-left">
-                <div className="ivot-chat__avatar" />
-                <div>
-                  <div className="ivot-chat__title">Ivo-t</div>
-                  <div className="ivot-chat__subtitle">
-                    Asistente IA para tareas rápidas
-                  </div>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="ivot-chat__close"
-                onClick={() => setIsIvoOpen(false)}
-              >
-                ×
-              </button>
-            </header>
-
-            <div className="ivot-chat__body">
-              <p className="ivot-chat__placeholder">
-                Acá vas a poder agendar citas, crear recordatorios y hacer
-                consultas rápidas a la IA mientras trabajás en Inmovia.
-                <br />
-                <br />
-                (Integración con IA en construcción.)
-              </p>
-            </div>
-
-            <div className="ivot-chat__input">
-              <input
-                type="text"
-                placeholder="Escribí tu mensaje para Ivo-t…"
-              />
-              <button type="button">Enviar</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <IvoTPanel isOpen={isIvoOpen} onClose={() => setIsIvoOpen(false)} />
 
       {/* Botón flotante de Ivo-t abajo a la derecha */}
       <button

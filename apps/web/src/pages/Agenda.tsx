@@ -305,14 +305,155 @@ const Agenda: React.FC = () => {
 
   const selectedDateLabel = selectedDate
     ? new Date(selectedDate + "T00:00:00").toLocaleDateString("es-AR", {
-        weekday: "long",
-        day: "2-digit",
-        month: "long",
-      })
+      weekday: "long",
+      day: "2-digit",
+      month: "long",
+    })
     : null;
 
   return (
     <div className="page-inner agenda-page">
+      <style>{`
+        /* Estilos locales para Agenda (Inmovia Style) */
+        
+        /* Layout General */
+        .agenda-card {
+          background: #ffffff;
+          border-radius: 1.5rem;
+          box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+          border: 1px solid rgba(226, 232, 240, 0.8);
+          overflow: hidden;
+        }
+        
+        /* Mini Calendario */
+        .agenda-calendar-pane {
+          background: #ffffff;
+          border-radius: 1.5rem;
+          padding: 1.5rem;
+          box-shadow: 0 4px 20px rgba(15, 23, 42, 0.03);
+          border: 1px solid rgba(226, 232, 240, 0.8);
+          margin-bottom: 1.5rem;
+        }
+        .agenda-cal-day {
+          border-radius: 50%; /* Circular */
+          transition: all 0.2s ease;
+        }
+        .agenda-cal-day:hover {
+          background-color: #f1f5f9;
+        }
+        .agenda-cal-day--selected {
+          background-color: var(--inmovia-primary) !important;
+          color: white !important;
+          box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3);
+        }
+        .agenda-cal-day--today {
+          color: var(--inmovia-primary);
+          font-weight: 700;
+          background-color: var(--inmovia-primary-soft);
+        }
+        .agenda-calendar-nav button {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          border: 1px solid rgba(226, 232, 240, 0.8);
+          background: white;
+          color: var(--inmovia-text-muted);
+          cursor: pointer;
+          transition: all 0.2s;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .agenda-calendar-nav button:hover {
+          border-color: var(--inmovia-primary);
+          color: var(--inmovia-primary);
+        }
+
+        /* Formulario y Controles */
+        .agenda-input, .agenda-filter-select {
+          border-radius: 999px; /* Cápsula */
+          border: 1px solid rgba(203, 213, 225, 0.8);
+          padding: 0.6rem 1rem;
+          font-size: 0.9rem;
+          transition: all 0.2s;
+          outline: none;
+        }
+        .agenda-textarea {
+          border-radius: 1.5rem; /* Textarea curvo pero no cápsula */
+        }
+        .agenda-input:focus, .agenda-filter-select:focus {
+          border-color: var(--inmovia-primary);
+          box-shadow: 0 0 0 3px var(--inmovia-primary-soft);
+        }
+        .agenda-submit-btn {
+          border-radius: 999px;
+          padding: 0.75rem 1.5rem;
+          font-weight: 600;
+          background-color: var(--inmovia-primary);
+          color: white;
+          border: none;
+          cursor: pointer;
+          transition: transform 0.1s, box-shadow 0.2s;
+        }
+        .agenda-submit-btn:hover {
+          background-color: var(--inmovia-primary-strong);
+          box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+          transform: translateY(-1px);
+        }
+
+        /* Lista de Eventos */
+        .agenda-event-item {
+          background: #f8fafc;
+          border-radius: 1rem;
+          border: 1px solid rgba(226, 232, 240, 0.6);
+          margin-bottom: 0.75rem;
+          padding: 1rem;
+          transition: all 0.2s;
+        }
+        .agenda-event-item:hover {
+          background: #ffffff;
+          box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+          border-color: var(--inmovia-primary-soft);
+          transform: translateX(2px);
+        }
+        .agenda-event-pill {
+          background-color: #e0f2fe;
+          color: #0369a1;
+          border-radius: 999px;
+          padding: 0.2rem 0.6rem;
+          font-size: 0.75rem;
+          font-weight: 600;
+        }
+        
+        /* Chips de estado */
+        .agenda-chip {
+          border-radius: 999px;
+          padding: 0.35rem 0.85rem;
+          font-size: 0.8rem;
+          font-weight: 500;
+          display: inline-flex;
+          align-items: center;
+          gap: 0.4rem;
+        }
+        .agenda-chip--ok {
+          background-color: #dcfce7;
+          color: #166534;
+        }
+        .agenda-chip--off {
+          background-color: #f1f5f9;
+          color: #64748b;
+        }
+        .agenda-chip--error {
+          background-color: #fee2e2;
+          color: #991b1b;
+        }
+        .agenda-chip-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background-color: currentColor;
+        }
+      `}</style>
       <div className="agenda-layout">
         {/* Columna izquierda: mini calendario + filtros */}
         <aside className="agenda-calendar-pane">

@@ -82,8 +82,13 @@ a {
 }
 
 .app-content {
-  max-width: 1400px; /* ⬅️ antes 1200px → ~20% más ancho */
+  max-width: 1400px;
+  /* ⬅️ antes 1200px → ~20% más ancho */
   margin: 0 auto;
+}
+
+.app-content--full {
+  max-width: none;
 }
 
 /* ===========================
@@ -456,6 +461,7 @@ a {
     opacity: 0;
     transform: translateX(-12px) translateY(4px) scale(0.98);
   }
+
   to {
     opacity: 1;
     transform: translateX(0) translateY(0) scale(1);
@@ -602,12 +608,15 @@ a {
 .mt-1 {
   margin-top: 0.25rem;
 }
+
 .mt-2 {
   margin-top: 0.5rem;
 }
+
 .mt-3 {
   margin-top: 0.75rem;
 }
+
 .mt-4 {
   margin-top: 1rem;
 }
@@ -661,6 +670,10 @@ a {
    CHAT FLOTANTE IVO-T
    =========================== */
 
+/* ===========================
+   CHAT FLOTANTE IVO-T (PREMIUM)
+   =========================== */
+
 .ivot-chat {
   position: fixed;
   right: 1.5rem;
@@ -668,111 +681,229 @@ a {
   z-index: 25;
 }
 
-.ivot-chat__panel {
-  width: 360px;
-  max-height: 70vh;
-  background: #ffffff;
+.glass-panel-premium {
+  width: 380px;
+  max-height: 75vh;
+  height: 600px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border-radius: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.5);
   box-shadow:
-    0 18px 45px rgba(15, 23, 42, 0.3),
-    0 0 0 1px rgba(203, 213, 225, 0.95);
+    0 20px 50px rgba(15, 23, 42, 0.25),
+    0 0 0 1px rgba(255, 255, 255, 0.2);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  animation: page-enter 220ms ease-out;
+  animation: ivot-enter 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+@keyframes ivot-enter {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Header */
 .ivot-chat__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid rgba(226, 232, 240, 1);
-  background: linear-gradient(135deg, #2563eb, #4f46e5);
-  color: #f9fafb;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+  background: rgba(255, 255, 255, 0.4);
 }
 
 .ivot-chat__header-left {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.75rem;
 }
 
-.ivot-chat__avatar {
-  width: 30px;
-  height: 30px;
-  border-radius: 999px;
-  background-image: url("/src/assets/ivot-logo.png");
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  box-shadow:
-    0 0 0 1px rgba(219, 234, 254, 0.9),
-    0 0 12px rgba(191, 219, 254, 0.8);
+.ivot-chat__avatar-container {
+  position: relative;
+  width: 40px;
+  height: 40px;
+}
+
+.ivot-chat__avatar-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+}
+
+.ivot-chat__status-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  background: #22c55e;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
 }
 
 .ivot-chat__title {
-  font-size: 0.9rem;
-  font-weight: 600;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.2;
 }
 
 .ivot-chat__subtitle {
   font-size: 0.75rem;
-  opacity: 0.9;
+  color: #64748b;
+  font-weight: 500;
 }
 
 .ivot-chat__close {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
   border: none;
   background: transparent;
-  color: #e5e7eb;
-  font-size: 1.1rem;
-  cursor: pointer;
-}
-
-.ivot-chat__body {
-  padding: 0.9rem 1rem;
-  flex: 1;
-  overflow-y: auto;
-}
-
-.ivot-chat__placeholder {
-  font-size: 0.85rem;
-  color: #4b5563;
-}
-
-.ivot-chat__input {
+  color: #94a3b8;
+  font-size: 1.5rem;
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.6rem 0.75rem 0.75rem;
-  border-top: 1px solid rgba(226, 232, 240, 1);
-  background: #f9fafb;
-}
-
-.ivot-chat__input input {
-  flex: 1;
-  padding: 0.45rem 0.75rem;
-  border-radius: 999px;
-  border: 1px solid rgba(203, 213, 225, 0.9);
-  font-size: 0.85rem;
-  outline: none;
-}
-
-.ivot-chat__input input:focus {
-  border-color: rgba(59, 130, 246, 0.9);
-  box-shadow: 0 0 0 2px rgba(191, 219, 254, 0.9);
-  background: #ffffff;
-}
-
-.ivot-chat__input button {
-  padding: 0.45rem 0.95rem;
-  border-radius: 999px;
-  border: none;
-  font-size: 0.8rem;
-  font-weight: 600;
-  background: linear-gradient(135deg, #2563eb, #4f46e5);
-  color: #f9fafb;
+  justify-content: center;
   cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ivot-chat__close:hover {
+  background: rgba(241, 245, 249, 0.8);
+  color: #475569;
+}
+
+/* Body */
+.ivot-chat__body {
+  flex: 1;
+  padding: 1.25rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  background: rgba(248, 250, 252, 0.3);
+}
+
+/* Messages */
+.ivot-message {
+  display: flex;
+  flex-direction: column;
+  max-width: 85%;
+  animation: msg-enter 0.2s ease-out;
+}
+
+@keyframes msg-enter {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ivot-message--bot {
+  align-self: flex-start;
+}
+
+.ivot-message--user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.ivot-message__bubble {
+  padding: 0.75rem 1rem;
+  border-radius: 1.25rem;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  position: relative;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.03);
+}
+
+.ivot-message--bot .ivot-message__bubble {
+  background: #ffffff;
+  color: #1e293b;
+  border-bottom-left-radius: 4px;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.ivot-message--user .ivot-message__bubble {
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  color: #ffffff;
+  border-bottom-right-radius: 4px;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+}
+
+.ivot-message__time {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  margin-top: 0.25rem;
+  padding: 0 0.5rem;
+}
+
+/* Input Area */
+.ivot-chat__input-area {
+  padding: 1rem;
+  background: #ffffff;
+  border-top: 1px solid rgba(226, 232, 240, 0.8);
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.ivot-chat__input-field {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  font-size: 0.9rem;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.ivot-chat__input-field:focus {
+  background: #ffffff;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.ivot-chat__send-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+.ivot-chat__send-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
+}
+
+.ivot-chat__send-btn:active {
+  transform: scale(0.95);
 }
 
 /* ====== Agenda & Recordatorios (Inmovia Office) ====== */
@@ -793,7 +924,92 @@ a {
   margin-top: 1.8rem;
 }
 
-/* Tarjeta de calendario lateral */
+/* ====== Ivo-t Full Page Layout ====== */
+
+.ivot-page-container {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 1.5rem;
+  height: calc(100vh - 140px);
+  /* Adjust based on header/padding */
+  min-height: 600px;
+}
+
+.ivot-sidebar {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(12px);
+  border-radius: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ivot-tool-item {
+  width: 100%;
+  text-align: left;
+  padding: 1rem;
+  border-radius: 1rem;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.ivot-tool-item:hover {
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 4px 12px rgba(148, 163, 184, 0.1);
+  transform: translateY(-1px);
+}
+
+.ivot-tool-item.active {
+  background: #ffffff;
+  border-color: rgba(59, 130, 246, 0.3);
+  box-shadow:
+    0 8px 20px rgba(37, 99, 235, 0.1),
+    0 0 0 1px rgba(59, 130, 246, 0.1);
+}
+
+.ivot-tool-name {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 0.95rem;
+}
+
+.ivot-tool-item.active .ivot-tool-name {
+  color: #2563eb;
+}
+
+.ivot-tool-desc {
+  font-size: 0.8rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.ivot-main-area {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  border-radius: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: var(--inmovia-shadow-panel);
+}
+
+.ivot-main-header {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+  background: rgba(255, 255, 255, 0.4);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 .agenda-calendar-pane {
   width: 380px;
   flex-shrink: 0;
@@ -1022,7 +1238,7 @@ a {
   transition: background 0.12s ease, transform 0.12s ease;
 }
 
-.agenda-event-item + .agenda-event-item {
+.agenda-event-item+.agenda-event-item {
   margin-top: 0.1rem;
 }
 
@@ -1576,7 +1792,7 @@ a {
   transition: background 0.12s ease, transform 0.12s ease;
 }
 
-.notif-item + .notif-item {
+.notif-item+.notif-item {
   margin-top: 0.25rem;
 }
 
@@ -1644,4 +1860,586 @@ a {
   background: rgba(55, 65, 81, 0.1);
   border-color: rgba(55, 65, 81, 0.4);
   color: #374151;
+}
+
+/* --------------------------
+   Contactos & Clientes
+   -------------------------- */
+
+/* Card headers más compactos y sin tanto aire */
+.card-filters .card-header-compact,
+.card-table .card-header-compact {
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+}
+
+.card-filters .card-title,
+.card-table .card-title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* Filtros en una sola fila, usando todo el ancho */
+.card-filters .card-body.grid-filters {
+  display: grid;
+  grid-template-columns: minmax(260px, 2.4fr) repeat(2, minmax(140px, 1fr));
+  gap: 1rem;
+  align-items: center;
+}
+
+/* Si existe el filtro por agente, lo agregamos como cuarta columna */
+.card-filters .card-body.grid-filters .form-group--disabled {
+  min-width: 160px;
+}
+
+/* Inputs/selects redondeados dentro de filtros (estilo Inmovia) */
+.card-filters .input,
+.card-filters .select {
+  border-radius: 9999px;
+  padding-inline: 1rem;
+  height: 38px;
+  font-size: 0.9rem;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  background-color: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.4);
+}
+
+/* Ajuste de label de filtros */
+.card-filters .form-label {
+  font-size: 0.8rem;
+  margin-bottom: 0.15rem;
+}
+
+/* Responsive filtros */
+@media (max-width: 1024px) {
+  .card-filters .card-body.grid-filters {
+    grid-template-columns: repeat(2, minmax(160px, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .card-filters .card-body.grid-filters {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Tabla de contactos: más limpia y con separación entre filas */
+.contacts-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+/* Encabezados con letra un poco más grande */
+.contacts-table thead th {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #4b5563;
+  padding: 0.45rem 0.8rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.4);
+  white-space: nowrap;
+}
+
+/* Celdas con fuente más grande y filas separadas */
+.contacts-table tbody tr.contacts-row td {
+  padding: 0.7rem 0.8rem;
+  font-size: 0.95rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+/* Quitar la primera línea extra */
+.contacts-table tbody tr.contacts-row:first-child td {
+  border-top: none;
+}
+
+/* Hover suave al estilo Inmovia */
+.table-row-clickable {
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.contacts-table tbody tr.contacts-row:hover {
+  background-color: rgba(255, 255, 255, 0.7);
+}
+
+/* Celda de contacto (avatar + nombre + origen) */
+.contact-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.contact-cell-text {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Nombre un poquito más grande */
+.contact-name {
+  font-weight: 600;
+  font-size: 0.98rem;
+  margin-bottom: 0.1rem;
+}
+
+.contact-meta {
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+/* Avatar pequeño */
+.avatar.avatar-sm {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* Recordatorios más compactos y en línea */
+.badge-reminders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+/* --------------------------
+   Detalle de contacto
+   -------------------------- */
+
+.page-header-simple {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding-bottom: 0.3rem;
+}
+
+.btn-icon-back {
+  border: none;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 999px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.18);
+}
+
+.btn-icon-back:hover {
+  background: #ffffff;
+}
+
+.contact-detail-top-card {
+  margin-top: 0.15rem;
+  margin-bottom: 0.9rem;
+  padding: 0.65rem 1.1rem;
+  border-radius: 1rem;
+  display: flex;
+  align-items: center;
+}
+
+.contact-top-title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+/* Layout 2 columnas */
+
+.contact-detail-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+@media (max-width: 960px) {
+  .contact-detail-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Sidebar izquierda */
+
+.contact-detail-sidebar {
+  padding: 1.1rem 1.1rem 1rem;
+}
+
+.contact-detail-sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin-bottom: 0.9rem;
+}
+
+.avatar.avatar-lg {
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.contact-detail-sidebar-title {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.contact-detail-name {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.contact-detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.chip-soft-strong {
+  font-weight: 600;
+}
+
+.contact-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.85rem;
+}
+
+.btn-quick {
+  border: none;
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  background: rgba(59, 130, 246, 0.08);
+  color: #1f2937;
+  cursor: pointer;
+}
+
+.btn-quick:hover {
+  background: rgba(59, 130, 246, 0.16);
+}
+
+/* Secciones dentro del sidebar */
+
+.contact-section {
+  margin-top: 0.75rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.contact-section-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+
+.contact-info-list {
+  margin: 0;
+  padding: 0;
+}
+
+.contact-info-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.contact-info-row dt {
+  font-weight: 500;
+  color: #4b5563;
+}
+
+.contact-info-row dd {
+  margin: 0;
+  text-align: right;
+  color: #111827;
+}
+
+/* Recordatorios (cumple / mudanza) */
+
+.contact-reminder-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.45rem;
+}
+
+.contact-reminder-label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #4b5563;
+}
+
+.contact-reminder-date {
+  font-size: 0.85rem;
+  color: #111827;
+}
+
+.contact-reminder-toggle {
+  display: flex;
+  align-items: center;
+}
+
+/* Toggle visual ON/OFF (solo UI) */
+
+.toggle-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem 0.15rem 0.2rem;
+  font-size: 0.75rem;
+  gap: 0.25rem;
+}
+
+.toggle-pill-on {
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+}
+
+.toggle-pill-off {
+  background: rgba(148, 163, 184, 0.18);
+  color: #4b5563;
+}
+
+.toggle-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.25);
+}
+
+.toggle-text {
+  white-space: nowrap;
+}
+
+/* Placeholder textos */
+
+.contact-placeholder {
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+/* Footer del sidebar */
+
+.contact-sidebar-footer {
+  margin-top: 0.9rem;
+}
+
+.btn-full {
+  width: 100%;
+}
+
+/* Columna derecha (tabs) */
+
+.contact-detail-main {
+  padding: 0.9rem 1rem 1rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.contact-tabs {
+  display: inline-flex;
+  gap: 0.3rem;
+  padding: 0.2rem;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.04);
+  margin-bottom: 0.8rem;
+}
+
+.contact-tab {
+  border: none;
+  background: transparent;
+  padding: 0.3rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: #4b5563;
+}
+
+.contact-tab-active {
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.15);
+  color: #111827;
+  font-weight: 600;
+}
+
+.contact-tab-panel {
+  margin-top: 0.4rem;
+  flex: 1;
+  min-height: 380px;
+  /* altura base para que no cambie según la pestaña */
+}
+
+/* Actividades */
+
+.contact-activities {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.contact-activity-item {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 0.55rem;
+  font-size: 0.85rem;
+}
+
+.contact-activity-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.contact-activity-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.contact-activity-title {
+  font-weight: 600;
+}
+
+.contact-activity-date {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.contact-activity-description {
+  margin-top: 0.2rem;
+  color: #374151;
+}
+
+.contact-activity-meta {
+  margin-top: 0.2rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.chip-activity {
+  font-size: 0.75rem;
+}
+
+.contact-activity-property {
+  font-size: 0.8rem;
+  color: #4b5563;
+}
+
+/* Info personal estilo RealOffice pero Inmovia */
+
+.contact-info-personal {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.contact-info-assistant {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 0.9rem;
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.assistant-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.assistant-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.assistant-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.assistant-subtitle {
+  font-size: 0.8rem;
+  color: #4b5563;
+}
+
+.contact-info-personal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.contact-info-item {
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.contact-info-item-header {
+  margin-bottom: 0.35rem;
+}
+
+.contact-info-item-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.contact-info-item-question {
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.contact-info-item-input {
+  font-size: 0.82rem;
+}
+
+/* Archivos */
+
+.contact-files-table thead th {
+  font-size: 0.8rem;
+  padding: 0.35rem 0.6rem;
+}
+
+.contact-files-table tbody td {
+  font-size: 0.85rem;
+  padding: 0.4rem 0.6rem;
+}
+
+.contact-files-actions {
+  margin-top: 0.75rem;
+  display: flex;
+  gap: 0.5rem;
 }

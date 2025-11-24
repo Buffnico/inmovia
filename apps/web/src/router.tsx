@@ -22,6 +22,9 @@ import ChatInterno from "./pages/ChatInterno";
 import Whatsapp from "./pages/Whatsapp";
 import Redes from "./pages/Redes";
 import IvoT from "./pages/IvoT";
+import Contactos from "./pages/Clientes";
+import ContactoDetalle from "./pages/ContactoDetalle";
+
 
 const AppRouter: React.FC = () => {
   return (
@@ -42,6 +45,8 @@ const AppRouter: React.FC = () => {
           <Route path="redes" element={<Redes />} />
           <Route path="edu" element={<Edu />} />
           <Route path="configuracion" element={<Ajustes />} />
+          <Route path="contactos" element={<Contactos />} />
+          <Route path="contactos/:id" element={<ContactoDetalle />} />
 
           {/* Centro de Ivo-t (pantalla completa) */}
           <Route path="ivot" element={<IvoT />} />

@@ -1,13 +1,16 @@
 // apps/web/src/pages/ChatInterno.tsx
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
-import Sidebar from "../components/Sidebar";
 
-type ChatItem = {
+type UserStatus = "online" | "offline" | "busy";
+
+type ChatUser = {
   id: string;
-  title: string;
-  subtitle: string;
+  name: string;
+  role: string;
+  status: UserStatus;
   unread?: number;
+  avatarColor?: string;
 };
 
 type Message = {
@@ -17,31 +20,38 @@ type Message = {
   time: string;
 };
 
-const DUMMY_CHATS: ChatItem[] = [
-  { id: "general", title: "Canal general", subtitle: "Anuncios de la oficina", unread: 2 },
-  { id: "ventas", title: "Equipo Ventas", subtitle: "Consultas sobre operaciones" },
-  { id: "admin", title: "Administración", subtitle: "Temas administrativos" },
+const DUMMY_USERS: ChatUser[] = [
+  { id: "broker", name: "Martín (Broker)", role: "Broker / Dueño", status: "online", avatarColor: "#2563eb" },
+  { id: "martillero", name: "Laura (Martillera)", role: "Martillero Público", status: "offline", avatarColor: "#7c3aed" },
+  { id: "admin", name: "Soporte Admin", role: "Administración", status: "online", unread: 3, avatarColor: "#db2777" },
+  { id: "agente1", name: "Juan Pérez", role: "Agente", status: "online", avatarColor: "#059669" },
+  { id: "agente2", name: "Sofía G.", role: "Agente", status: "busy", avatarColor: "#d97706" },
+  { id: "agente3", name: "Carlos M.", role: "Agente", status: "offline", avatarColor: "#4b5563" },
 ];
 
 const DUMMY_MESSAGES: Record<string, Message[]> = {
-  general: [
-    { id: "m1", from: "otro", text: "Recordatorio: reunión mañana a las 10 hs.", time: "09:12" },
-    { id: "m2", from: "yo", text: "Perfecto, gracias.", time: "09:15" },
+  broker: [
+    { id: "m1", from: "otro", text: "Hola, necesito ver los números de cierre de mes.", time: "09:12" },
+    { id: "m2", from: "yo", text: "En un momento te los paso.", time: "09:15" },
   ],
-  ventas: [
-    { id: "m3", from: "otro", text: "¿Quién puede acompañar visita en Alsina 770?", time: "11:00" },
-    { id: "m4", from: "yo", text: "Yo puedo a las 17 hs.", time: "11:05" },
+  admin: [
+    { id: "m3", from: "otro", text: "Falta firmar la reserva de Alsina.", time: "11:00" },
+    { id: "m4", from: "otro", text: "¿Podés pasar por la oficina?", time: "11:01" },
   ],
-  admin: [{ id: "m5", from: "otro", text: "Se cargó la nueva plantilla de reserva.", time: "16:20" }],
 };
 
 export default function ChatInterno() {
-  const [selectedChatId, setSelectedChatId] = useState<string>("general");
-  const [messagesByChat, setMessagesByChat] = useState<Record<string, Message[]>>(DUMMY_MESSAGES);
+  const [selectedUserId, setSelectedUserId] = useState<string>("broker");
+  const [messagesByUser, setMessagesByUser] = useState<Record<string, Message[]>>(DUMMY_MESSAGES);
   const [draft, setDraft] = useState<string>("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const chat = DUMMY_CHATS.find((c) => c.id === selectedChatId) ?? DUMMY_CHATS[0];
-  const messages = messagesByChat[selectedChatId] ?? [];
+  const activeUser = DUMMY_USERS.find((u) => u.id === selectedUserId) ?? DUMMY_USERS[0];
+  const messages = messagesByUser[selectedUserId] ?? [];
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, selectedUserId]);
 
   function handleSend(e: React.FormEvent) {
     e.preventDefault();
@@ -55,218 +65,328 @@ export default function ChatInterno() {
       time: new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
     };
 
-    setMessagesByChat((prev) => ({
+    setMessagesByUser((prev) => ({
       ...prev,
-      [selectedChatId]: [...(prev[selectedChatId] ?? []), newMsg],
+      [selectedUserId]: [...(prev[selectedUserId] ?? []), newMsg],
     }));
     setDraft("");
   }
 
   return (
-    <div className="app-shell">
-      {/* /<Sidebar />/ */}
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
 
-      <div className="app-main app-chatinterno">
-        <div className="glass-panel">
-          {/* Marca arriba-izquierda */}
-          <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
-            <Link
-              to="/dashboard"
-              className="brand"
-              style={{ textDecoration: "none", color: "inherit" }}
-              title="Ir al Dashboard"
-            >
-              <span className="brand-badge" />
-              Inmovia Office
-            </Link>
+      {/* Header de la sección */}
+      <div className="page-header">
+        <h1 className="page-title">Chat de Oficina</h1>
+        <p className="page-subtitle">Conectado con el equipo Inmovia.</p>
+      </div>
+
+      <div className="glass-panel" style={{ padding: 0, overflow: 'hidden', flex: 1, display: 'flex', minHeight: 0 }}>
+
+        {/* SIDEBAR DE USUARIOS (IZQUIERDA) */}
+        <aside style={{
+          width: '300px',
+          borderRight: '1px solid var(--inmovia-border-soft)',
+          background: '#f8fafc',
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          <div style={{ padding: '1.25rem 1rem 1rem' }}>
+            <input
+              type="text"
+              placeholder="Buscar compañero..."
+              style={{
+                width: '100%',
+                padding: '0.6rem 1rem',
+                borderRadius: '99px',
+                border: '1px solid #cbd5e1',
+                background: 'white',
+                fontSize: '0.9rem',
+                outline: 'none'
+              }}
+            />
           </div>
 
-          <div className="dash-header">
-            <h1 className="brand-title">Chat interno</h1>
-            <p className="brand-sub">
-              Comunicación entre integrantes de la oficina. Ideal para coordinar visitas, reservas y tareas diarias.
-            </p>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '0 0.75rem 1rem' }}>
+
+            <div style={{ padding: '0.5rem 0.5rem 0.5rem', fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Usuarios
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {DUMMY_USERS.map(u => (
+                <UserListItem
+                  key={u.id}
+                  user={u}
+                  active={selectedUserId === u.id}
+                  onClick={() => setSelectedUserId(u.id)}
+                />
+              ))}
+            </div>
+
           </div>
+        </aside>
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "280px 1fr",
-              gap: 16,
-              minHeight: "60vh",
-            }}
-          >
-            {/* Lista de chats */}
-            <aside
-              style={{
-                borderRadius: 16,
-                padding: 12,
-                background: "rgba(15,30,55,0.85)",
-                border: "1px solid rgba(141,197,255,0.2)",
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-              }}
-            >
-              <div style={{ fontWeight: 700, marginBottom: 4 }}>Canales</div>
-              {DUMMY_CHATS.map((c) => {
-                const active = c.id === selectedChatId;
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => setSelectedChatId(c.id)}
-                    className="btn"
-                    style={{
-                      width: "100%",
-                      textAlign: "left",
-                      background: active ? "rgba(55,168,255,0.14)" : "rgba(10,24,50,0.8)",
-                      borderColor: active ? "rgba(55,168,255,0.35)" : "rgba(23,48,79,0.8)",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "flex-start",
-                      gap: 2,
-                    }}
-                  >
-                    <span style={{ fontWeight: 600 }}>{c.title}</span>
-                    <span style={{ fontSize: 12, opacity: 0.8 }}>{c.subtitle}</span>
-                    {c.unread ? (
-                      <span
-                        style={{
-                          marginTop: 4,
-                          fontSize: 11,
-                          padding: "2px 6px",
-                          borderRadius: 999,
-                          background: "rgba(55,168,255,0.3)",
-                        }}
-                      >
-                        {c.unread} nuevos
-                      </span>
-                    ) : null}
-                  </button>
-                );
-              })}
-            </aside>
+        {/* ÁREA DE CHAT (DERECHA) */}
+        <section style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'white' }}>
 
-            {/* Panel de conversación */}
-            <section
-              style={{
-                borderRadius: 16,
-                padding: 16,
-                background: "rgba(8,20,44,0.8)",
-                border: "1px solid rgba(141,197,255,0.22)",
-                display: "flex",
-                flexDirection: "column",
-                minHeight: 0,
-              }}
-            >
-              <header
-                style={{
-                  marginBottom: 12,
-                  paddingBottom: 8,
-                  borderBottom: "1px solid rgba(141,197,255,0.22)",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  gap: 8,
-                }}
-              >
-                <div>
-                  <div style={{ fontWeight: 700 }}>{chat.title}</div>
-                  <div style={{ fontSize: 12, opacity: 0.8 }}>{chat.subtitle}</div>
+          {/* Header del Chat Activo */}
+          <header style={{
+            padding: '1rem 1.5rem',
+            borderBottom: '1px solid var(--inmovia-border-soft)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: 'rgba(255,255,255,0.8)',
+            backdropFilter: 'blur(10px)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{ position: 'relative' }}>
+                <div style={{
+                  width: '42px', height: '42px', borderRadius: '50%',
+                  background: activeUser.avatarColor || '#cbd5e1',
+                  color: 'white',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '1rem', fontWeight: 600
+                }}>
+                  {activeUser.name.charAt(0)}
                 </div>
-                <small style={{ opacity: 0.7 }}>
-                  Próximamente: menciones, adjuntos y canales por propiedad.
-                </small>
-              </header>
+                <div style={{
+                  position: 'absolute', bottom: 0, right: 0,
+                  width: '12px', height: '12px', borderRadius: '50%',
+                  border: '2px solid white',
+                  background: activeUser.status === 'online' ? '#22c55e' : (activeUser.status === 'busy' ? '#f59e0b' : '#94a3b8')
+                }} />
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, color: '#0f172a' }}>{activeUser.name}</div>
+                <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{activeUser.role}</div>
+              </div>
+            </div>
 
-              {/* Mensajes */}
-              <div
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button className="btn-icon" title="Llamar">📞</button>
+              <button className="btn-icon" title="Video">📹</button>
+              <button className="btn-icon" title="Info">ℹ️</button>
+            </div>
+          </header>
+
+          {/* Lista de Mensajes */}
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: '1.5rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem',
+            background: '#f8fafc'
+          }}>
+            {messages.length === 0 ? (
+              <div style={{ margin: 'auto', textAlign: 'center', opacity: 0.6 }}>
+                <div style={{ fontSize: '3rem', marginBottom: '1rem', filter: 'grayscale(1)' }}>👋</div>
+                <p>Inicia la conversación con {activeUser.name.split(' ')[0]}.</p>
+              </div>
+            ) : (
+              messages.map((m) => (
+                <MessageBubble key={m.id} msg={m} />
+              ))
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Input Area */}
+          <div style={{
+            padding: '1rem 1.5rem',
+            borderTop: '1px solid var(--inmovia-border-soft)',
+            background: 'white'
+          }}>
+            <form
+              onSubmit={handleSend}
+              style={{
+                display: 'flex',
+                gap: '0.75rem',
+                alignItems: 'center',
+                background: '#f1f5f9',
+                padding: '0.5rem',
+                borderRadius: '1.5rem',
+                border: '1px solid transparent',
+                transition: 'border-color 0.2s',
+                boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.03)'
+              }}
+              onFocus={(e) => e.currentTarget.style.borderColor = '#cbd5e1'}
+              onBlur={(e) => e.currentTarget.style.borderColor = 'transparent'}
+            >
+              <button type="button" className="btn-icon-small" title="Adjuntar">📎</button>
+
+              <input
+                type="text"
+                placeholder="Escribe un mensaje..."
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
                 style={{
                   flex: 1,
-                  overflowY: "auto",
-                  padding: "4px 0",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 8,
+                  background: 'transparent',
+                  border: 'none',
+                  outline: 'none',
+                  fontSize: '0.95rem',
+                  color: '#0f172a',
+                  padding: '0.25rem'
                 }}
-              >
-                {messages.map((m) => (
-                  <div
-                    key={m.id}
-                    style={{
-                      display: "flex",
-                      justifyContent: m.from === "yo" ? "flex-end" : "flex-start",
-                    }}
-                  >
-                    <div
-                      style={{
-                        maxWidth: "70%",
-                        padding: "8px 12px",
-                        borderRadius: 14,
-                        fontSize: 14,
-                        background:
-                          m.from === "yo"
-                            ? "linear-gradient(135deg, var(--brand), var(--brand-2))"
-                            : "rgba(18,36,63,0.9)",
-                        border:
-                          m.from === "yo"
-                            ? "1px solid rgba(42,168,255,0.5)"
-                            : "1px solid rgba(141,197,255,0.18)",
-                      }}
-                    >
-                      <div>{m.text}</div>
-                      <div
-                        style={{
-                          marginTop: 4,
-                          fontSize: 11,
-                          opacity: 0.7,
-                          textAlign: "right",
-                        }}
-                      >
-                        {m.time}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                {messages.length === 0 && (
-                  <div style={{ textAlign: "center", opacity: 0.7, marginTop: 24 }}>
-                    No hay mensajes aún en este canal.
-                  </div>
-                )}
-              </div>
+              />
 
-              {/* Input */}
-              <form
-                onSubmit={handleSend}
+              <button
+                type="submit"
+                disabled={!draft.trim()}
                 style={{
-                  marginTop: 12,
-                  display: "flex",
-                  gap: 8,
-                  alignItems: "center",
+                  background: draft.trim() ? 'var(--inmovia-primary)' : '#cbd5e1',
+                  color: 'white',
+                  border: 'none',
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: draft.trim() ? 'pointer' : 'default',
+                  transition: 'all 0.2s'
                 }}
               >
-                <input
-                  type="text"
-                  placeholder="Escribí un mensaje para la oficina..."
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  style={{
-                    flex: 1,
-                    borderRadius: 999,
-                    border: "1px solid rgba(141,197,255,0.3)",
-                    padding: "8px 14px",
-                    background: "rgba(10,24,50,0.9)",
-                    color: "#eaf3ff",
-                    fontSize: 14,
-                  }}
-                />
-                <button type="submit" className="btn btn-primary">
-                  Enviar
-                </button>
-              </form>
-            </section>
+                ➤
+              </button>
+            </form>
           </div>
+
+        </section>
+      </div>
+
+      <style>{`
+        .btn-icon {
+          width: 36px; height: 36px;
+          border-radius: 8px;
+          border: none;
+          background: transparent;
+          color: #64748b;
+          cursor: pointer;
+          display: flex; alignItems: 'center'; justifyContent: 'center';
+          font-size: 1.1rem;
+          transition: all 0.2s;
+        }
+        .btn-icon:hover { background: #f1f5f9; color: #0f172a; }
+
+        .btn-icon-small {
+          width: 32px; height: 32px;
+          border-radius: 50%;
+          border: none;
+          background: transparent;
+          color: #64748b;
+          cursor: pointer;
+          font-size: 1.1rem;
+          transition: all 0.2s;
+        }
+        .btn-icon-small:hover { background: #e2e8f0; color: #0f172a; }
+      `}</style>
+    </div>
+  );
+}
+
+function UserListItem({ user, active, onClick }: { user: ChatUser, active: boolean, onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        width: '100%',
+        textAlign: 'left',
+        padding: '0.75rem 0.75rem',
+        borderRadius: '0.75rem',
+        border: 'none',
+        background: active ? 'white' : 'transparent',
+        boxShadow: active ? '0 2px 5px rgba(0,0,0,0.05)' : 'none',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.75rem',
+        transition: 'all 0.2s'
+      }}
+      onMouseEnter={(e) => !active && (e.currentTarget.style.background = '#f1f5f9')}
+      onMouseLeave={(e) => !active && (e.currentTarget.style.background = 'transparent')}
+    >
+      <div style={{ position: 'relative' }}>
+        <div style={{
+          width: '36px', height: '36px', borderRadius: '50%',
+          background: user.avatarColor || '#cbd5e1',
+          color: 'white',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: '0.9rem', fontWeight: 600
+        }}>
+          {user.name.charAt(0)}
+        </div>
+        <div style={{
+          position: 'absolute', bottom: 0, right: 0,
+          width: '10px', height: '10px', borderRadius: '50%',
+          border: '2px solid white', // o el color de fondo del padre
+          background: user.status === 'online' ? '#22c55e' : (user.status === 'busy' ? '#f59e0b' : '#94a3b8')
+        }} />
+      </div>
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontSize: '0.9rem',
+          fontWeight: active || user.unread ? 700 : 500,
+          color: '#0f172a',
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+        }}>
+          {user.name}
+        </div>
+        <div style={{
+          fontSize: '0.75rem',
+          color: '#64748b',
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+        }}>
+          {user.role}
+        </div>
+      </div>
+
+      {user.unread ? (
+        <div style={{
+          background: '#ef4444', color: 'white',
+          fontSize: '0.7rem', fontWeight: 700,
+          padding: '2px 6px', borderRadius: '99px'
+        }}>
+          {user.unread}
+        </div>
+      ) : null}
+    </button>
+  );
+}
+
+function MessageBubble({ msg }: { msg: Message }) {
+  const isMe = msg.from === "yo";
+  return (
+    <div style={{
+      display: 'flex',
+      justifyContent: isMe ? 'flex-end' : 'flex-start',
+      marginBottom: '0.25rem'
+    }}>
+      <div style={{
+        maxWidth: '70%',
+        padding: '0.75rem 1rem',
+        borderRadius: '1.25rem',
+        borderBottomRightRadius: isMe ? '4px' : '1.25rem',
+        borderBottomLeftRadius: isMe ? '1.25rem' : '4px',
+        background: isMe ? 'linear-gradient(135deg, #2563eb, #4f46e5)' : 'white',
+        color: isMe ? 'white' : '#0f172a',
+        boxShadow: isMe ? '0 4px 12px rgba(37, 99, 235, 0.2)' : '0 2px 5px rgba(0,0,0,0.05)',
+        border: isMe ? 'none' : '1px solid #e2e8f0'
+      }}>
+        <div style={{ fontSize: '0.95rem', lineHeight: 1.5 }}>{msg.text}</div>
+        <div style={{
+          fontSize: '0.7rem',
+          marginTop: '0.25rem',
+          textAlign: 'right',
+          opacity: 0.8,
+          color: isMe ? '#e0e7ff' : '#94a3b8'
+        }}>
+          {msg.time}
         </div>
       </div>
     </div>

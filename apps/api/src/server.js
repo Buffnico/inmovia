@@ -4,8 +4,7 @@ const cors = require("cors");
 const helmet = require("helmet");
 const compression = require("compression");
 
-const eduRouter = require("./routes/edu");
-const calendarRoutes = require("./googleCalendar"); // 👈 Google Calendar
+const routes = require("./routes");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -22,7 +21,11 @@ app.use(compression());
  */
 app.use(
   cors({
-    origin: ["https://inmovia.vercel.app", "http://localhost:5173"],
+    origin: [
+      "https://inmovia.vercel.app",
+      "http://localhost:5173",
+      "http://localhost:5174",
+    ],
     credentials: true,
   })
 );
@@ -40,12 +43,9 @@ app.get("/api/ping", (_req, res) =>
 );
 
 /**
- * Rutas
+ * Rutas principales
  */
-app.use("/api/edu", eduRouter);
-
-// 👇 Todas las rutas de calendario arrancan con /api/calendar
-app.use("/api/calendar", calendarRoutes);
+app.use("/api", routes);
 
 /**
  * Start

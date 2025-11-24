@@ -1,24 +1,31 @@
-﻿import express from "express";
-import portadas from "./portadas.js";
-require("dotenv").config();
-const eduRouter = require("./routes/edu");
+﻿const express = require('express');
 const router = express.Router();
 
-router.get("/", (req, res) => res.json({ ok: true, message: "API Root OK" }));
+// Import route modules
+const agendaRouter = require('./agenda');
+const contactsRouter = require('./contacts');
+const propertiesRouter = require('./properties');
+const documentsRouter = require('./documents');
+const ivotRouter = require('./ivot');
 
-router.use("/portadas", portadas);
-app.use("/api/edu", eduRouter);
-// Namespaces (placeholders)
-router.use("/auth", (req, res) => res.json({ ok: true, module: "auth" }));
-router.use("/contacts", (req, res) => res.json({ ok: true, module: "contacts" }));
-router.use("/assets", (req, res) => res.json({ ok: true, module: "assets" }));
-router.use("/cases", (req, res) => res.json({ ok: true, module: "cases" }));
+// Import Google Calendar module (located in parent src/ folder)
+const googleCalendarRouter = require('../googleCalendar');
 
-// Real Estate (placeholders)
-router.use("/real-estate/portadas", (req, res) => res.json({ ok: true, module: "portadas" }));
-router.use("/real-estate/showcases", (req, res) => res.json({ ok: true, module: "showcases" }));
+// API root
+router.get('/', (req, res) => res.json({ ok: true, message: 'Inmovia API v1.0' }));
 
-// Calendar (flag)
-router.use("/calendar", (req, res) => res.json({ ok: true, module: "calendar (flag pending)" }));
+// Register routes
+router.use('/agenda', agendaRouter);
+router.use('/contacts', contactsRouter);
+router.use('/properties', propertiesRouter);
+router.use('/documents', documentsRouter);
+router.use('/ivot', ivotRouter);
 
-export default router;
+// Google Calendar Integration
+// This router handles /api/calendar/status, /api/calendar/connect, /api/calendar/events, etc.
+router.use('/calendar', googleCalendarRouter);
+
+// Auth placeholder (can be expanded later)
+router.use('/auth', (req, res) => res.json({ ok: true, module: 'auth (placeholder)' }));
+
+module.exports = router;

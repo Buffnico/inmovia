@@ -1,6 +1,7 @@
 // apps/web/src/pages/IvoT.tsx
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
+import ivoLogo from "../assets/ivot-logo.png";
 
 type Tool = {
   id: string;
@@ -55,18 +56,26 @@ const INITIAL_MSGS: ChatMsg[] = [
   },
 ];
 
+const API_URL = "http://localhost:3001/api/ivot/chat";
+
 export default function IvoT() {
   const [selectedToolId, setSelectedToolId] = useState<string>("chat");
   const [messages, setMessages] = useState<ChatMsg[]>(INITIAL_MSGS);
   const [draft, setDraft] = useState<string>("");
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const selectedTool =
-    TOOLS.find((t) => t.id === selectedToolId) ?? TOOLS[0];
+  const selectedTool = TOOLS.find((t) => t.id === selectedToolId) ?? TOOLS[0];
 
-  function handleSend(e: React.FormEvent) {
+  // Auto-scroll
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  async function handleSend(e: React.FormEvent) {
     e.preventDefault();
     const text = draft.trim();
-    if (!text) return;
+    if (!text || isLoading) return;
 
     const now = new Date().toLocaleTimeString("es-AR", {
       hour: "2-digit",
@@ -80,244 +89,183 @@ export default function IvoT() {
       time: now,
     };
 
-    // Maqueta: agregamos sólo el mensaje del usuario.
-    // Más adelante acá llamamos al backend de Ivo-t / OpenAI.
     setMessages((prev) => [...prev, userMsg]);
     setDraft("");
+    setIsLoading(true);
+
+    try {
+      // Preparar historial para OpenAI
+      const history = messages
+        .concat(userMsg)
+        .map((m) => ({
+          role: m.from === "yo" ? "user" : "assistant",
+          content: m.text,
+        }));
+
+      const response = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ history: history }),
+      });
+
+      if (!response.ok) throw new Error("Error en la respuesta");
+
+      const data = await response.json();
+
+      const botMsg: ChatMsg = {
+        id: `b-${Date.now()}`,
+        from: "ivo-t",
+        text: data.message,
+        time: new Date().toLocaleTimeString("es-AR", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      };
+
+      setMessages((prev) => [...prev, botMsg]);
+    } catch (error) {
+      console.error("Error al comunicarse con Ivo-t:", error);
+      const errorMsg: ChatMsg = {
+        id: `e-${Date.now()}`,
+        from: "ivo-t",
+        text: "Lo siento, hubo un problema. Asegurate de que el backend esté ejecutándose en localhost:3001.",
+        time: new Date().toLocaleTimeString("es-AR", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      };
+      setMessages((prev) => [...prev, errorMsg]);
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   return (
-    <div className="app-main">
-      <div className="glass-panel">
-        {/* Marca arriba-izquierda */}
-        <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
-          <Link
-            to="/dashboard"
-            className="brand"
-            style={{ textDecoration: "none", color: "inherit" }}
-            title="Ir al Dashboard"
-          >
-            <span className="brand-badge" />
-            Inmovia Office
-          </Link>
-        </div>
+    <div className="page-inner">
+      <div className="page-header">
+        <h1 className="page-title">Ivo-t</h1>
+        <p className="page-subtitle">
+          Asistente IA de la oficina. Diseñado para trabajar con tus documentos,
+          propiedades y agenda.
+        </p>
+      </div>
 
-        <div className="dash-header">
-          <h1 className="brand-title">Ivo-t</h1>
-          <p className="brand-sub">
-            Asistente IA de la oficina. Diseñado para trabajar con tus documentos,
-            propiedades y agenda.
-          </p>
-        </div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "280px 1fr",
-            gap: 16,
-            minHeight: "60vh",
-          }}
-        >
-          {/* Lista de herramientas de Ivo-t */}
-          <aside
-            style={{
-              borderRadius: 16,
-              padding: 12,
-              background: "rgba(15,30,55,0.85)",
-              border: "1px solid rgba(141,197,255,0.2)",
-              display: "flex",
-              flexDirection: "column",
-              gap: 8,
-            }}
-          >
-            <div style={{ fontWeight: 700, marginBottom: 4 }}>
-              Herramientas de Ivo-t
-            </div>
-            {TOOLS.map((tool) => {
-              const active = tool.id === selectedToolId;
-              return (
-                <button
-                  key={tool.id}
-                  type="button"
-                  onClick={() => setSelectedToolId(tool.id)}
-                  className="btn"
-                  style={{
-                    width: "100%",
-                    textAlign: "left",
-                    background: active
-                      ? "rgba(55,168,255,0.16)"
-                      : "rgba(10,24,50,0.85)",
-                    borderColor: active
-                      ? "rgba(55,168,255,0.4)"
-                      : "rgba(23,48,79,0.9)",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "flex-start",
-                    gap: 4,
-                  }}
-                >
-                  <span style={{ fontWeight: 600 }}>{tool.name}</span>
-                  <span style={{ fontSize: 12, opacity: 0.8 }}>
-                    {tool.description}
-                  </span>
+      <div className="ivot-page-container">
+        {/* Sidebar de Herramientas */}
+        <aside className="ivot-sidebar">
+          <div style={{ fontWeight: 600, padding: "0 0.5rem", color: "#64748b", fontSize: "0.85rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            Herramientas
+          </div>
+          {TOOLS.map((tool) => {
+            const active = tool.id === selectedToolId;
+            return (
+              <button
+                key={tool.id}
+                type="button"
+                onClick={() => setSelectedToolId(tool.id)}
+                className={`ivot-tool-item ${active ? "active" : ""}`}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
+                  <span className="ivot-tool-name">{tool.name}</span>
                   {tool.badge && (
                     <span
                       style={{
-                        marginTop: 2,
-                        fontSize: 11,
+                        fontSize: "0.65rem",
                         padding: "2px 6px",
                         borderRadius: 999,
-                        border: "1px solid rgba(55,168,255,0.4)",
-                        background: "rgba(55,168,255,0.08)",
+                        background: "rgba(59, 130, 246, 0.1)",
+                        color: "#2563eb",
+                        fontWeight: 600,
+                        border: "1px solid rgba(59, 130, 246, 0.2)",
                       }}
                     >
                       {tool.badge}
                     </span>
                   )}
-                </button>
-              );
-            })}
-
-            <div
-              style={{
-                marginTop: 12,
-                fontSize: 12,
-                opacity: 0.8,
-              }}
-            >
-              Desde tu perfil de <strong>Owner</strong> vas a poder habilitar o
-              deshabilitar estas herramientas por oficina.
-            </div>
-          </aside>
-
-          {/* Panel principal de chat con Ivo-t */}
-          <section
-            style={{
-              borderRadius: 16,
-              padding: 16,
-              background: "rgba(8,20,44,0.9)",
-              border: "1px solid rgba(141,197,255,0.22)",
-              display: "flex",
-              flexDirection: "column",
-              minHeight: 0,
-            }}
-          >
-            <header
-              style={{
-                marginBottom: 12,
-                paddingBottom: 8,
-                borderBottom: "1px solid rgba(141,197,255,0.22)",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 12,
-              }}
-            >
-              <div>
-                <div style={{ fontWeight: 700 }}>
-                  {selectedTool.name}
                 </div>
-                <div style={{ fontSize: 12, opacity: 0.8 }}>
-                  {selectedTool.description}
-                </div>
-              </div>
-
-              <div
-                style={{
-                  textAlign: "right",
-                  fontSize: 12,
-                  opacity: 0.8,
-                  maxWidth: 260,
-                }}
-              >
-                En la versión completa, esta vista se conecta al backend de Ivo-t
-                y a OpenAI para responder en tiempo real y agendar eventos.
-              </div>
-            </header>
-
-            {/* Conversación */}
-            <div
-              style={{
-                flex: 1,
-                overflowY: "auto",
-                padding: "4px 0",
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-              }}
-            >
-              {messages.map((m) => (
-                <div
-                  key={m.id}
-                  style={{
-                    display: "flex",
-                    justifyContent:
-                      m.from === "yo" ? "flex-end" : "flex-start",
-                  }}
-                >
-                  <div
-                    style={{
-                      maxWidth: "70%",
-                      padding: "8px 12px",
-                      borderRadius: 14,
-                      fontSize: 14,
-                      background:
-                        m.from === "yo"
-                          ? "linear-gradient(135deg, var(--brand), var(--brand-2))"
-                          : "rgba(18,36,63,0.9)",
-                      border:
-                        m.from === "yo"
-                          ? "1px solid rgba(42,168,255,0.6)"
-                          : "1px solid rgba(141,197,255,0.18)",
-                    }}
-                  >
-                    <div>{m.text}</div>
-                    <div
-                      style={{
-                        marginTop: 4,
-                        fontSize: 11,
-                        opacity: 0.7,
-                        textAlign: "right",
-                      }}
-                    >
-                      {m.time}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Input */}
-            <form
-              onSubmit={handleSend}
-              style={{
-                marginTop: 12,
-                display: "flex",
-                gap: 8,
-                alignItems: "center",
-              }}
-            >
-              <input
-                type="text"
-                placeholder="Escribí tu consulta para Ivo-t..."
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                style={{
-                  flex: 1,
-                  borderRadius: 999,
-                  border: "1px solid rgba(141,197,255,0.3)",
-                  padding: "8px 14px",
-                  background: "rgba(10,24,50,0.9)",
-                  color: "#eaf3ff",
-                  fontSize: 14,
-                }}
-              />
-              <button type="submit" className="btn btn-primary">
-                Enviar
+                <span className="ivot-tool-desc">{tool.description}</span>
               </button>
-            </form>
-          </section>
-        </div>
+            );
+          })}
+
+          <div style={{ marginTop: "auto", padding: "1rem", fontSize: "0.8rem", color: "#94a3b8", textAlign: "center" }}>
+            <p>
+              Desde tu perfil de <strong>Owner</strong> vas a poder habilitar o
+              deshabilitar estas herramientas.
+            </p>
+          </div>
+        </aside>
+
+        {/* Área Principal de Chat */}
+        <section className="ivot-main-area">
+          <header className="ivot-main-header">
+            <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+              <div className="ivot-chat__avatar-container">
+                <img src={ivoLogo} alt="Ivo-t" className="ivot-chat__avatar-img" />
+                <span className="ivot-chat__status-dot"></span>
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, color: "#0f172a" }}>{selectedTool.name}</div>
+                <div style={{ fontSize: "0.8rem", color: "#64748b" }}>En línea</div>
+              </div>
+            </div>
+
+            <div style={{ fontSize: "0.8rem", color: "#94a3b8", maxWidth: "300px", textAlign: "right" }}>
+              Conectado a Inmovia Brain v1.0
+            </div>
+          </header>
+
+          {/* Conversación */}
+          <div className="ivot-chat__body" style={{ background: "transparent" }}>
+            {messages.map((m) => (
+              <div
+                key={m.id}
+                className={`ivot-message ${m.from === "yo" ? "ivot-message--user" : "ivot-message--bot"
+                  }`}
+              >
+                <div className="ivot-message__bubble">
+                  {m.text}
+                </div>
+                <div className="ivot-message__time">{m.time}</div>
+              </div>
+            ))}
+            {isLoading && (
+              <div className="ivot-message ivot-message--bot">
+                <div className="ivot-message__bubble">
+                  <em>Ivo-t está escribiendo...</em>
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Input */}
+          <form className="ivot-chat__input-area" onSubmit={handleSend}>
+            <input
+              type="text"
+              className="ivot-chat__input-field"
+              placeholder={`Escribí tu consulta para ${selectedTool.name}...`}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              disabled={isLoading}
+            />
+            <button type="submit" className="ivot-chat__send-btn" disabled={isLoading}>
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </button>
+          </form>
+        </section>
       </div>
     </div>
   );
