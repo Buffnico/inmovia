@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import ivoLogo from "../assets/ivot-logo.png";
+import "./IvoT.css";
 
 type Tool = {
   id: string;

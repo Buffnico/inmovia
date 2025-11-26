@@ -100,6 +100,7 @@ export default function Documentos() {
         .docs-layout {
           display: grid;
           grid-template-columns: 240px 1fr;
+          grid-template-rows: auto 1fr;
           gap: 2rem;
           height: calc(100vh - 140px);
         }
@@ -107,6 +108,7 @@ export default function Documentos() {
         @media (max-width: 1024px) {
           .docs-layout {
             grid-template-columns: 1fr;
+            grid-template-rows: auto auto 1fr;
             height: auto;
           }
         }
@@ -161,6 +163,7 @@ export default function Documentos() {
 
         /* Herramientas Rápidas */
         .tools-grid {
+          grid-column: 1 / -1;
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
           gap: 1rem;
@@ -354,6 +357,53 @@ export default function Documentos() {
 
       <div className="docs-layout">
 
+        {/* HERRAMIENTAS RÁPIDAS (Moved to top) */}
+        <section className="tools-grid">
+          {/* 1. Nuevo Contrato */}
+          <div className="tool-card" onClick={() => alert("🤖 Asistente de Contratos: Seleccioná una plantilla (Alquiler, Venta, Reserva) para comenzar.")}>
+            <div className="tool-icon" style={{ background: '#eff6ff', color: '#2563eb' }}>📄</div>
+            <div>
+              <div className="tool-title">Nuevo Contrato</div>
+              <div className="tool-desc">Usar plantillas inteligentes</div>
+            </div>
+          </div>
+
+          {/* 2. Escáner (Funcional) */}
+          <div className="tool-card" onClick={openScanEmpty}>
+            <div className="tool-icon" style={{ background: '#f0fdf4', color: '#16a34a' }}>📷</div>
+            <div>
+              <div className="tool-title">Escanear</div>
+              <div className="tool-desc">Digitalizar con cámara</div>
+            </div>
+          </div>
+
+          {/* 3. Subir Archivo (Funcional) */}
+          <div className="tool-card" onClick={onPickFiles}>
+            <div className="tool-icon" style={{ background: '#fdf4ff', color: '#c026d3' }}>☁️</div>
+            <div>
+              <div className="tool-title">Subir Archivo</div>
+              <div className="tool-desc">Importar PDF o imágenes</div>
+            </div>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*,.pdf"
+              multiple
+              onChange={onFilesChange}
+              style={{ display: "none" }}
+            />
+          </div>
+
+          {/* 4. Firma Digital */}
+          <div className="tool-card" onClick={() => alert("✍️ Firma Digital: Seleccioná un documento para enviarlo a firmar.")}>
+            <div className="tool-icon" style={{ background: '#fff7ed', color: '#ea580c' }}>✍️</div>
+            <div>
+              <div className="tool-title">Firma Digital</div>
+              <div className="tool-desc">Solicitar firmas remotas</div>
+            </div>
+          </div>
+        </section>
+
         {/* SIDEBAR */}
         <aside className="docs-sidebar">
           <h3 className="control-section-title" style={{ marginBottom: '1rem' }}>Carpetas</h3>
@@ -390,56 +440,8 @@ export default function Documentos() {
           </div>
         </aside>
 
-        {/* MAIN AREA */}
+        {/* MAIN AREA (Table only) */}
         <main className="docs-main">
-
-          {/* HERRAMIENTAS RÁPIDAS */}
-          <section className="tools-grid">
-            {/* 1. Nuevo Contrato */}
-            <div className="tool-card" onClick={() => alert("🤖 Asistente de Contratos: Seleccioná una plantilla (Alquiler, Venta, Reserva) para comenzar.")}>
-              <div className="tool-icon" style={{ background: '#eff6ff', color: '#2563eb' }}>📄</div>
-              <div>
-                <div className="tool-title">Nuevo Contrato</div>
-                <div className="tool-desc">Usar plantillas inteligentes</div>
-              </div>
-            </div>
-
-            {/* 2. Escáner (Funcional) */}
-            <div className="tool-card" onClick={openScanEmpty}>
-              <div className="tool-icon" style={{ background: '#f0fdf4', color: '#16a34a' }}>📷</div>
-              <div>
-                <div className="tool-title">Escanear</div>
-                <div className="tool-desc">Digitalizar con cámara</div>
-              </div>
-            </div>
-
-            {/* 3. Subir Archivo (Funcional) */}
-            <div className="tool-card" onClick={onPickFiles}>
-              <div className="tool-icon" style={{ background: '#fdf4ff', color: '#c026d3' }}>☁️</div>
-              <div>
-                <div className="tool-title">Subir Archivo</div>
-                <div className="tool-desc">Importar PDF o imágenes</div>
-              </div>
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*,.pdf"
-                multiple
-                onChange={onFilesChange}
-                style={{ display: "none" }}
-              />
-            </div>
-
-            {/* 4. Firma Digital */}
-            <div className="tool-card" onClick={() => alert("✍️ Firma Digital: Seleccioná un documento para enviarlo a firmar.")}>
-              <div className="tool-icon" style={{ background: '#fff7ed', color: '#ea580c' }}>✍️</div>
-              <div>
-                <div className="tool-title">Firma Digital</div>
-                <div className="tool-desc">Solicitar firmas remotas</div>
-              </div>
-            </div>
-          </section>
-
           {/* LISTA DE DOCUMENTOS */}
           <section className="docs-table-container">
             <div className="docs-header">

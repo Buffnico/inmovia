@@ -1,0 +1,606 @@
+/* Clientes.css */
+
+/* --- Filtros (Clientes.tsx) --- */
+.card-filters {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    margin-bottom: 1.5rem;
+}
+
+.card-filters .card-header {
+    display: none;
+}
+
+.card-filters .card-body {
+    padding: 0;
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    align-items: flex-end;
+}
+
+.filter-group {
+    flex: 1;
+    min-width: 200px;
+}
+
+.filter-label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--inmovia-text-muted);
+    margin-bottom: 0.4rem;
+    margin-left: 0.5rem;
+}
+
+.filter-input,
+.filter-select {
+    width: 100%;
+    padding: 0.75rem 1.25rem;
+    border-radius: 999px;
+    border: 1px solid rgba(203, 213, 225, 0.8);
+    background-color: #ffffff;
+    font-size: 0.95rem;
+    color: var(--inmovia-text-main);
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 5px rgba(15, 23, 42, 0.03);
+    outline: none;
+}
+
+.filter-input:focus,
+.filter-select:focus {
+    border-color: var(--inmovia-primary);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+    transform: translateY(-1px);
+}
+
+/* --- Tabla (Clientes.tsx) --- */
+.card-table {
+    border-radius: 1.5rem;
+    overflow: hidden;
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+}
+
+.card-table .card-header {
+    background: #ffffff;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+    padding: 1.25rem 1.5rem;
+}
+
+.contacts-table thead th {
+    background: #f8fafc;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    color: var(--inmovia-text-muted);
+    padding: 1rem 1.5rem;
+    font-weight: 700;
+}
+
+.contacts-table tbody td {
+    padding: 1rem 1.5rem;
+    vertical-align: middle;
+    border-bottom: 1px solid rgba(241, 245, 249, 0.8);
+}
+
+.contacts-row {
+    transition: background-color 0.15s ease;
+    cursor: pointer;
+}
+
+.contacts-row:hover {
+    background-color: #f1f5f9;
+}
+
+.contacts-row:last-child td {
+    border-bottom: none;
+}
+
+.contact-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.contact-name {
+    font-weight: 600;
+    color: var(--inmovia-text-main);
+}
+
+.contact-meta {
+    font-size: 0.8rem;
+    color: var(--inmovia-text-muted);
+}
+
+/* --- Modales (Clientes.tsx) --- */
+.modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+}
+
+.modal {
+    width: 100%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+    background: #ffffff;
+    border-radius: 1.5rem;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    animation: modal-enter 0.3s ease-out;
+}
+
+@keyframes modal-enter {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.form-row {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.form-col {
+    flex: 1;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.input,
+.select {
+    width: 100%;
+    padding: 0.75rem 1.25rem;
+    border-radius: 1.5rem;
+    border: 1px solid rgba(203, 213, 225, 0.8);
+    background-color: #f8fafc;
+    font-size: 0.95rem;
+    color: var(--inmovia-text-main);
+    transition: all 0.2s ease;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.input:focus,
+.select:focus {
+    background-color: #ffffff;
+    border-color: var(--inmovia-primary);
+    box-shadow: 0 0 0 3px var(--inmovia-primary-soft);
+}
+
+.textarea {
+    width: 100%;
+    padding: 1rem;
+    border-radius: 1.5rem;
+    border: 1px solid rgba(203, 213, 225, 0.8);
+    background-color: #f8fafc;
+    font-size: 0.95rem;
+    color: var(--inmovia-text-main);
+    transition: all 0.2s ease;
+    outline: none;
+    resize: vertical;
+    font-family: inherit;
+    box-sizing: border-box;
+}
+
+.textarea:focus {
+    background-color: #ffffff;
+    border-color: var(--inmovia-primary);
+    box-shadow: 0 0 0 3px var(--inmovia-primary-soft);
+}
+
+input[type="checkbox"] {
+    width: 1.2rem;
+    height: 1.2rem;
+    margin: 0;
+    cursor: pointer;
+    accent-color: var(--inmovia-primary);
+}
+
+/* --- Detalle Contacto (ContactoDetalle.tsx) --- */
+.contact-detail-layout {
+    display: grid;
+    grid-template-columns: 350px 1fr;
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+}
+
+@media (max-width: 1024px) {
+    .contact-detail-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+.contact-detail-sidebar {
+    border-radius: 2rem !important;
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
+    padding: 1.5rem;
+    background: #fff;
+    height: fit-content;
+}
+
+.contact-detail-main {
+    border-radius: 2rem !important;
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
+    padding: 1.5rem;
+    background: #fff;
+    min-height: 500px;
+}
+
+.btn-icon-back {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.5rem;
+    color: var(--inmovia-text-main);
+    padding: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    line-height: 1;
+}
+
+.btn-icon-back:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+    background-color: #e2e8f0;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    border: none;
+    padding: 0;
+}
+
+.toggle-switch[aria-checked="true"] {
+    background-color: var(--inmovia-primary);
+}
+
+.toggle-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    background-color: white;
+    border-radius: 50%;
+    transition: transform 0.3s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.toggle-switch[aria-checked="true"] .toggle-thumb {
+    transform: translateX(20px);
+}
+
+.toggle-label {
+    font-size: 0.85rem;
+    color: var(--inmovia-text-muted);
+    margin-left: 0.5rem;
+    font-weight: 500;
+}
+
+.contact-reminder-toggle-container {
+    display: flex;
+    align-items: center;
+}
+
+.contact-info-item-input {
+    width: 100%;
+    box-sizing: border-box;
+    border-radius: 1.5rem !important;
+    padding: 1rem 1.5rem !important;
+    border: 1px solid rgba(203, 213, 225, 0.8);
+    background-color: #f8fafc;
+    transition: all 0.2s ease;
+    resize: none;
+}
+
+.contact-info-item-input:focus {
+    background-color: #ffffff;
+    border-color: var(--inmovia-primary);
+    box-shadow: 0 0 0 3px var(--inmovia-primary-soft);
+    outline: none;
+}
+
+.input-date-rounded {
+    border-radius: 999px;
+    border: 1px solid #cbd5e1;
+    padding: 0.5rem 1rem;
+    font-family: inherit;
+    color: var(--inmovia-text-main);
+}
+
+.contact-detail-top-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.5rem;
+    background: #fff;
+    border-radius: 1.5rem;
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-sm);
+}
+
+.contact-top-title {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--inmovia-text-main);
+}
+
+.contact-reminder-row {
+    margin-bottom: 1rem;
+}
+
+.contact-reminder-row:last-child {
+    margin-bottom: 0;
+}
+
+/* Sidebar Header */
+.contact-detail-sidebar-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.contact-detail-sidebar-title {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.contact-detail-name {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--inmovia-text-main);
+}
+
+.contact-detail-tags {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.contact-quick-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.btn-quick {
+    padding: 0.5rem;
+    border-radius: 0.75rem;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-quick:hover {
+    background: #e2e8f0;
+}
+
+.contact-section {
+    margin-bottom: 1.5rem;
+}
+
+.contact-section-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+    color: var(--inmovia-text-main);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.contact-info-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.contact-info-row dt {
+    font-size: 0.8rem;
+    color: var(--inmovia-text-muted);
+    margin-bottom: 0.1rem;
+}
+
+.contact-info-row dd {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--inmovia-text-main);
+    margin: 0;
+}
+
+/* Tabs */
+.contact-tabs {
+    display: flex;
+    gap: 1rem;
+    border-bottom: 1px solid #e2e8f0;
+    margin-bottom: 1.5rem;
+}
+
+.contact-tab {
+    background: none;
+    border: none;
+    padding: 0.75rem 0;
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--inmovia-text-muted);
+    cursor: pointer;
+    position: relative;
+}
+
+.contact-tab-active {
+    color: var(--inmovia-primary);
+    font-weight: 700;
+}
+
+.contact-tab-active::after {
+    content: "";
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: var(--inmovia-primary);
+}
+
+/* Activities */
+.contact-activities {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.contact-activity-item {
+    display: flex;
+    gap: 1rem;
+    padding: 1rem;
+    background: #f8fafc;
+    border-radius: 1rem;
+    border: 1px solid #e2e8f0;
+}
+
+.contact-activity-icon {
+    font-size: 1.5rem;
+    background: #fff;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: 1px solid #e2e8f0;
+}
+
+.contact-activity-content {
+    flex: 1;
+}
+
+.contact-activity-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.25rem;
+}
+
+.contact-activity-title {
+    font-weight: 600;
+    color: var(--inmovia-text-main);
+}
+
+.contact-activity-date {
+    font-size: 0.8rem;
+    color: var(--inmovia-text-muted);
+}
+
+.contact-activity-description {
+    font-size: 0.9rem;
+    color: var(--inmovia-text-main);
+    margin-bottom: 0.5rem;
+}
+
+.contact-activity-meta {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.contact-activity-property {
+    font-size: 0.8rem;
+    color: var(--inmovia-text-muted);
+    background: #fff;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid #e2e8f0;
+}
+
+/* Info Personal Assistant */
+.contact-info-assistant {
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
+}
+
+.assistant-avatar {
+    width: 40px;
+    height: 40px;
+    background: var(--inmovia-primary);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.assistant-title {
+    font-weight: 700;
+    color: #1e3a8a;
+    margin-bottom: 0.25rem;
+}
+
+.assistant-subtitle {
+    font-size: 0.9rem;
+    color: #1e40af;
+}
+
+.contact-info-item {
+    margin-bottom: 1.5rem;
+}
+
+.contact-info-item-header {
+    margin-bottom: 0.5rem;
+}
+
+.contact-info-item-title {
+    font-weight: 600;
+    color: var(--inmovia-text-main);
+}
+
+.contact-info-item-question {
+    font-size: 0.85rem;
+    color: var(--inmovia-text-muted);
+    font-style: italic;
+}

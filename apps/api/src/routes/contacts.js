@@ -2,11 +2,14 @@ const express = require('express');
 const router = express.Router();
 const { handleContactReminders } = require('../services/contactRemindersService');
 
+const { canReadContact, canEditContact, ROLES } = require('../utils/permissions');
+
 // --- MOCK DATABASE (In-Memory) ---
 let contacts = [
     {
         id: "c1",
-        agentId: "a1",
+        agentId: "agente1", // Mock ID
+        ownerId: "agente1",
         agenteNombre: "Agente Juan",
         nombre: "María",
         apellido: "Pérez",
@@ -16,7 +19,7 @@ let contacts = [
         etapa: "En seguimiento",
         origen: "Portal",
         fechaCumpleanios: "1990-05-12",
-        recordarCumpleanios: false, // Empezamos en false para probar el toggle
+        recordarCumpleanios: false,
         fechaMudanza: "2024-03-01",
         recordarMudanza: false,
         direccion: "Av. Siempre Viva 123",
@@ -24,11 +27,13 @@ let contacts = [
         provincia: "Buenos Aires",
         pais: "Argentina",
         cumpleCalendarEventId: null,
-        mudanzaCalendarEventId: null
+        mudanzaCalendarEventId: null,
+        linkedPropertyId: "p1" // Linked property for Receptionist access test
     },
     {
         id: "c2",
-        agentId: "a1",
+        agentId: "agente1",
+        ownerId: "agente1",
         agenteNombre: "Agente Juan",
         nombre: "Carlos",
         apellido: "Gómez",
@@ -43,6 +48,7 @@ let contacts = [
     {
         id: "c3",
         agentId: "a2",
+        ownerId: "a2",
         agenteNombre: "Recepcionista Laura",
         nombre: "Laura",
         apellido: "Sosa",
@@ -56,15 +62,9 @@ let contacts = [
     },
 ];
 
-// Helper para filtrar por rol (Stub)
-function filterByRole(user, data) {
-    // TODO: Implementar filtrado real por rol (ej. recepcionista no ve ciertos contactos)
-    return data;
-}
-
 // GET /api/contacts - List all contacts
 router.get('/', (req, res) => {
-    const visibleContacts = filterByRole(req.user, contacts);
+    const visibleContacts = contacts.filter(c => canReadContact(req.user, c));
     res.json({
         ok: true,
         data: visibleContacts
@@ -77,6 +77,11 @@ router.get('/:id', (req, res) => {
     if (!contact) {
         return res.status(404).json({ ok: false, message: "Contacto no encontrado" });
     }
+
+    if (!canReadContact(req.user, contact)) {
+        return res.status(403).json({ ok: false, message: "No tienes permiso para ver este contacto" });
+    }
+
     res.json({
         ok: true,
         data: contact
@@ -89,6 +94,16 @@ router.post('/', (req, res) => {
         id: `c${Date.now()}`,
         ...req.body
     };
+
+    // Auto-assign owner for Agents
+    if (req.user.role === ROLES.AGENTE) {
+        newContact.ownerId = req.user.id;
+        newContact.agentId = req.user.id;
+    } else if (!newContact.ownerId) {
+        // Default owner for others
+        newContact.ownerId = req.user.id;
+    }
+
     contacts.push(newContact);
     res.json({
         ok: true,
@@ -105,7 +120,17 @@ router.put('/:id', async (req, res) => {
     }
 
     const oldContact = { ...contacts[index] };
+
+    if (!canEditContact(req.user, oldContact)) {
+        return res.status(403).json({ ok: false, message: "No tienes permiso para editar este contacto" });
+    }
+
     const updatedContact = { ...oldContact, ...req.body };
+
+    // Prevent ownership change by agents
+    if (req.user.role === ROLES.AGENTE) {
+        updatedContact.ownerId = oldContact.ownerId;
+    }
 
     // 1. Procesar recordatorios en Calendar
     const calendarUpdates = await handleContactReminders(oldContact, updatedContact);
@@ -130,6 +155,13 @@ router.put('/:id', async (req, res) => {
 
 // DELETE /api/contacts/:id - Delete contact
 router.delete('/:id', (req, res) => {
+    const contact = contacts.find(c => c.id === req.params.id);
+    if (!contact) return res.status(404).json({ ok: false, message: "Contacto no encontrado" });
+
+    if (!canEditContact(req.user, contact)) {
+        return res.status(403).json({ ok: false, message: "No tienes permiso para eliminar este contacto" });
+    }
+
     contacts = contacts.filter(c => c.id !== req.params.id);
     res.json({
         ok: true,

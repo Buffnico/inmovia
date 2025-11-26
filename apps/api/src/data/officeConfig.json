@@ -1,0 +1,26 @@
+{
+  "officeName": "Inmovia Office",
+  "brandName": "Inmovia",
+  "officeAddress": "",
+  "officeCity": "",
+  "marketArea": "",
+  "defaultCurrency": "USD",
+  "dateFormat": "DD/MM/YYYY",
+  "timeFormat": "24h",
+  "timezone": "America/Argentina/Buenos_Aires",
+  "branding": {
+    "primaryColor": "#0f172a",
+    "secondaryColor": "#3b82f6",
+    "logoUrl": ""
+  },
+  "modules": {
+    "properties": true,
+    "agenda": true,
+    "contacts": true,
+    "whatsapp": true,
+    "edu": true,
+    "scanner": true,
+    "social": true,
+    "ivot": true
+  }
+}

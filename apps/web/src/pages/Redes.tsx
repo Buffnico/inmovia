@@ -248,10 +248,11 @@ export default function Redes() {
           background: #f1f5f9;
         }
         .toggle-chip.active {
-          background: var(--inmovia-primary);
-          color: white;
-          border-color: var(--inmovia-primary);
-          box-shadow: 0 4px 10px rgba(37, 99, 235, 0.2);
+          background: #3b82f6 !important; /* var(--primary) forced */
+          color: #ffffff !important;
+          border-color: #3b82f6 !important;
+          box-shadow: 0 4px 10px rgba(59, 130, 246, 0.4);
+          font-weight: 600;
         }
 
         /* Botón Generar */

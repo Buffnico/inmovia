@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import ivoLogo from "../../assets/ivot-logo.png";
+import "../../pages/IvoT.css";
 
 interface IvoTPanelProps {
     isOpen: boolean;

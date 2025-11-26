@@ -2,6 +2,7 @@
 import { FormEvent, useState } from "react";
 import { Link } from "react-router-dom";
 import ivoLogo from "../assets/ivo-t.png";
+import "../pages/IvoT.css";
 
 type Msg = {
   id: string;

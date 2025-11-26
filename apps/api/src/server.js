@@ -43,6 +43,19 @@ app.get("/api/ping", (_req, res) =>
 /**
  * Rutas principales
  */
+const initOwner = require('./utils/initOwner');
+const authRoutes = require('./routes/authRoutes');
+const userRoutes = require('./routes/userRoutes');
+const profileRoutes = require('./routes/profileRoutes');
+
+// Inicializar Owner al arrancar
+initOwner();
+
+// Rutas de Auth y Usuarios
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/profile', profileRoutes);
+
 app.use("/api", routes);
 
 /**

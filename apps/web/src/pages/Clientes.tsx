@@ -1,7 +1,9 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../store/auth";
+import "./Clientes.css";
 
-type UserRole = "AGENTE" | "RECEPCIONISTA" | "OWNER" | "ADMIN";
+type UserRole = "AGENTE" | "RECEPCIONISTA" | "OWNER" | "ADMIN" | "MARTILLERO";
 
 type TipoContacto =
   | "Amigo"
@@ -36,92 +38,6 @@ interface Contact {
   recordarMudanza: boolean;
 }
 
-/**
- * TODO: Reemplazar esto cuando tengamos auth real.
- */
-const CURRENT_USER_ROLE: UserRole = "AGENTE";
-
-/**
- * Datos de ejemplo mientras conectamos API.
- */
-const MOCK_CONTACTS: Contact[] = [
-  {
-    id: "c1",
-    agentId: "a1",
-    agenteNombre: "Agente Juan",
-    nombre: "María",
-    apellido: "Pérez",
-    telefonoPrincipal: "+54 11 1234-5678",
-    emailPrincipal: "maria.perez@example.com",
-    tipoContacto: "Cliente comprador",
-    etapa: "En seguimiento",
-    origen: "Portal",
-    fechaCumpleanios: "1990-05-12",
-    recordarCumpleanios: true,
-    fechaMudanza: "2024-03-01",
-    recordarMudanza: true,
-  },
-  {
-    id: "c2",
-    agentId: "a1",
-    agenteNombre: "Agente Juan",
-    nombre: "Carlos",
-    apellido: "Gómez",
-    telefonoPrincipal: "+54 11 2222-3333",
-    emailPrincipal: "carlos.gomez@example.com",
-    tipoContacto: "Posible cliente",
-    etapa: "Nuevo",
-    origen: "Redes",
-    recordarCumpleanios: false,
-    recordarMudanza: false,
-  },
-  {
-    id: "c3",
-    agentId: "a2",
-    agenteNombre: "Recepcionista Laura",
-    nombre: "Laura",
-    apellido: "Sosa",
-    telefonoPrincipal: "+54 11 4444-5555",
-    emailPrincipal: "laura.sosa@example.com",
-    tipoContacto: "Proveedor",
-    etapa: "Cliente activo",
-    origen: "Recomendado",
-    recordarCumpleanios: false,
-    recordarMudanza: false,
-  },
-  {
-    id: "c4",
-    agentId: "a3",
-    agenteNombre: "Agente Ana",
-    nombre: "Jorge",
-    apellido: "López",
-    telefonoPrincipal: "+54 11 6666-7777",
-    emailPrincipal: "jorge.lopez@example.com",
-    tipoContacto: "Cliente vendedor",
-    etapa: "Cliente activo",
-    origen: "Walk-in oficina",
-    recordarCumpleanios: true,
-    fechaCumpleanios: "1982-11-22",
-    recordarMudanza: false,
-  },
-  {
-    id: "c5",
-    agentId: "a3",
-    agenteNombre: "Agente Ana",
-    nombre: "Silvia",
-    apellido: "Fernández",
-    telefonoPrincipal: "+54 11 8888-9999",
-    emailPrincipal: "silvia.fernandez@example.com",
-    tipoContacto: "Amigo",
-    etapa: "Cerrado",
-    origen: "Recomendado",
-    recordarCumpleanios: true,
-    fechaCumpleanios: "1987-07-08",
-    recordarMudanza: true,
-    fechaMudanza: "2023-08-15",
-  },
-];
-
 const TIPO_CONTACTO_OPTIONS: (TipoContacto | "Todos")[] = [
   "Todos",
   "Amigo",
@@ -144,6 +60,8 @@ const ETAPA_OPTIONS: (EtapaContacto | "Todas")[] = [
 
 const Clientes: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001/api";
 
   // Filtros
   const [searchTerm, setSearchTerm] = useState("");
@@ -155,10 +73,29 @@ const Clientes: React.FC = () => {
   const [showNewContactModal, setShowNewContactModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
 
-  // Estado de contactos (mutable para la demo)
-  const [contacts, setContacts] = useState<Contact[]>(MOCK_CONTACTS);
+  // Estado de contactos
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const canSeeAgentColumn = isAdminRole(CURRENT_USER_ROLE);
+  const fetchContacts = () => {
+    setLoading(true);
+    const token = localStorage.getItem('token');
+    fetch(`${API_BASE_URL}/contacts`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.ok) setContacts(data.data);
+      })
+      .catch(err => console.error("Error fetching contacts", err))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchContacts();
+  }, []);
+
+  const canSeeAgentColumn = user && ['OWNER', 'ADMIN', 'MARTILLERO', 'RECEPCIONISTA'].includes(user.role);
 
   const filteredContacts = useMemo(() => {
     return contacts.filter((c) => {
@@ -187,212 +124,33 @@ const Clientes: React.FC = () => {
   };
 
   const handleCreateContact = (newContact: Contact) => {
-    setContacts((prev) => [newContact, ...prev]);
-    setShowNewContactModal(false);
+    const token = localStorage.getItem('token');
+    fetch(`${API_BASE_URL}/contacts`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(newContact)
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.ok) {
+          setContacts((prev) => [data.data, ...prev]);
+          setShowNewContactModal(false);
+        }
+      });
   };
 
   const handleImportContacts = (importedContacts: Contact[]) => {
+    // Implement import logic via API if needed, or loop create
+    // For now just local update to mock
     setContacts((prev) => [...importedContacts, ...prev]);
     setShowImportModal(false);
   };
 
   return (
     <div className="page-content">
-      <style>{`
-        /* Estilos locales para Lista de Contactos (Inmovia Style) */
-        
-        /* Filtros tipo cápsula */
-        .card-filters {
-          background: transparent;
-          border: none;
-          box-shadow: none;
-          padding: 0;
-          margin-bottom: 1.5rem;
-        }
-        .card-filters .card-header {
-          display: none; /* Ocultamos el título "Filtros" para limpiar la UI */
-        }
-        .card-filters .card-body {
-          padding: 0;
-          display: flex;
-          gap: 1rem;
-          flex-wrap: wrap;
-          align-items: flex-end;
-        }
-        .filter-group {
-          flex: 1;
-          min-width: 200px;
-        }
-        .filter-label {
-          display: block;
-          font-size: 0.85rem;
-          font-weight: 600;
-          color: var(--inmovia-text-muted);
-          margin-bottom: 0.4rem;
-          margin-left: 0.5rem;
-        }
-        .filter-input, .filter-select {
-          width: 100%;
-          padding: 0.75rem 1.25rem;
-          border-radius: 999px; /* Cápsula completa */
-          border: 1px solid rgba(203, 213, 225, 0.8);
-          background-color: #ffffff;
-          font-size: 0.95rem;
-          color: var(--inmovia-text-main);
-          transition: all 0.2s ease;
-          box-shadow: 0 2px 5px rgba(15, 23, 42, 0.03);
-          outline: none;
-        }
-        .filter-input:focus, .filter-select:focus {
-          border-color: var(--inmovia-primary);
-          box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
-          transform: translateY(-1px);
-        }
-
-        /* Tabla estilizada */
-        .card-table {
-          border-radius: 1.5rem;
-          overflow: hidden;
-          border: 1px solid rgba(226, 232, 240, 0.8);
-          box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
-        }
-        .card-table .card-header {
-          background: #ffffff;
-          border-bottom: 1px solid rgba(226, 232, 240, 0.6);
-          padding: 1.25rem 1.5rem;
-        }
-        .contacts-table thead th {
-          background: #f8fafc;
-          text-transform: uppercase;
-          font-size: 0.75rem;
-          letter-spacing: 0.05em;
-          color: var(--inmovia-text-muted);
-          padding: 1rem 1.5rem;
-          font-weight: 700;
-        }
-        .contacts-table tbody td {
-          padding: 1rem 1.5rem;
-          vertical-align: middle;
-          border-bottom: 1px solid rgba(241, 245, 249, 0.8);
-        }
-        .contacts-row {
-          transition: background-color 0.15s ease;
-          cursor: pointer;
-        }
-        .contacts-row:hover {
-          background-color: #f1f5f9;
-        }
-        .contacts-row:last-child td {
-          border-bottom: none;
-        }
-        
-        /* Avatar y texto */
-        .contact-cell {
-          display: flex;
-          align-items: center;
-          gap: 0.75rem;
-        }
-        .contact-name {
-          font-weight: 600;
-          color: var(--inmovia-text-main);
-        }
-        .contact-meta {
-          font-size: 0.8rem;
-          color: var(--inmovia-text-muted);
-        }
-
-        /* Modal Styles */
-        .modal-backdrop {
-          position: fixed;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          background: rgba(15, 23, 42, 0.6);
-          backdrop-filter: blur(4px);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 50;
-        }
-        .modal {
-          width: 100%;
-          max-width: 600px;
-          max-height: 90vh;
-          overflow-y: auto;
-          background: #ffffff;
-          border-radius: 1.5rem;
-          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-          animation: modal-enter 0.3s ease-out;
-        }
-        @keyframes modal-enter {
-          from { opacity: 0; transform: scale(0.95); }
-          to { opacity: 1; transform: scale(1); }
-        }
-        .form-row {
-          display: flex;
-          gap: 1rem;
-          margin-bottom: 1rem;
-        }
-        .form-col {
-          flex: 1;
-        }
-        .modal-footer {
-          display: flex;
-          justify-content: flex-end;
-          gap: 1rem;
-          margin-top: 2rem;
-          padding-top: 1rem;
-          border-top: 1px solid rgba(226, 232, 240, 0.8);
-        }
-
-        /* Estilos de Inputs del Modal (Circular / Inmovia) */
-        .input, .select {
-          width: 100%;
-          padding: 0.75rem 1.25rem;
-          border-radius: 1.5rem; /* Bordes muy redondeados */
-          border: 1px solid rgba(203, 213, 225, 0.8);
-          background-color: #f8fafc;
-          font-size: 0.95rem;
-          color: var(--inmovia-text-main);
-          transition: all 0.2s ease;
-          outline: none;
-          box-sizing: border-box;
-        }
-        .input:focus, .select:focus {
-          background-color: #ffffff;
-          border-color: var(--inmovia-primary);
-          box-shadow: 0 0 0 3px var(--inmovia-primary-soft);
-        }
-        .textarea {
-          width: 100%;
-          padding: 1rem;
-          border-radius: 1.5rem;
-          border: 1px solid rgba(203, 213, 225, 0.8);
-          background-color: #f8fafc;
-          font-size: 0.95rem;
-          color: var(--inmovia-text-main);
-          transition: all 0.2s ease;
-          outline: none;
-          resize: vertical;
-          font-family: inherit;
-          box-sizing: border-box;
-        }
-        .textarea:focus {
-          background-color: #ffffff;
-          border-color: var(--inmovia-primary);
-          box-shadow: 0 0 0 3px var(--inmovia-primary-soft);
-        }
-        /* Ajuste para checkbox alineado */
-        input[type="checkbox"] {
-          width: 1.2rem;
-          height: 1.2rem;
-          margin: 0;
-          cursor: pointer;
-          accent-color: var(--inmovia-primary);
-        }
-      `}</style>
-
       {/* Header de la página */}
       <div className="page-header">
         <div>
@@ -474,18 +232,18 @@ const Clientes: React.FC = () => {
       <div className="card card-table">
         <div className="card-header card-header-compact">
           <h2 className="card-title">
-            Lista de contactos <span style={{ opacity: 0.5, fontSize: '0.9em', marginLeft: '0.5rem' }}>{filteredContacts.length}</span>
+            Lista de contactos <span className="text-muted" style={{ fontSize: '0.9em', marginLeft: '0.5rem' }}>{filteredContacts.length}</span>
           </h2>
         </div>
 
-        <div className="card-body" style={{ padding: 0 }}>
+        <div className="card-body p-0">
           {filteredContacts.length === 0 ? (
-            <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--inmovia-text-muted)' }}>
+            <div className="p-5 text-center text-muted">
               <p>No se encontraron contactos con los filtros actuales.</p>
             </div>
           ) : (
             <div className="table-wrapper">
-              <table className="table contacts-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <table className="table contacts-table w-100">
                 <thead>
                   <tr>
                     <th>Contacto</th>
@@ -524,14 +282,13 @@ const Clientes: React.FC = () => {
                       <td>{contact.telefonoPrincipal ?? "-"}</td>
                       <td>{contact.emailPrincipal ?? "-"}</td>
                       <td>
-                        <span className="chip chip-soft" style={{ fontSize: '0.8rem' }}>
+                        <span className="chip chip-soft text-xs">
                           {contact.tipoContacto}
                         </span>
                       </td>
                       <td>
                         <span
-                          className={`chip chip-etapa-${toSlug(contact.etapa)}`}
-                          style={{ fontSize: '0.8rem' }}
+                          className={`chip chip-etapa-${toSlug(contact.etapa)} text-xs`}
                         >
                           {contact.etapa}
                         </span>

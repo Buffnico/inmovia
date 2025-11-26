@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import "./Agenda.css";
 
 type CalendarStatus = "checking" | "connected" | "disconnected" | "error";
 
@@ -43,7 +44,10 @@ interface CalendarCell {
   hasEvents?: boolean;
 }
 
+import { useAuth } from "../store/auth";
+
 const Agenda: React.FC = () => {
+  const { user } = useAuth();
   const [status, setStatus] = useState<CalendarStatus>("checking");
   const [statusMessage, setStatusMessage] = useState("");
   const [loadingStatus, setLoadingStatus] = useState(true);
@@ -79,7 +83,10 @@ const Agenda: React.FC = () => {
   async function loadStatus() {
     setLoadingStatus(true);
     try {
-      const res = await fetch(apiUrl("/api/calendar/status"));
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl("/api/calendar/status"), {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (!res.ok) throw new Error("Error de estado");
       const data = await res.json();
 
@@ -99,7 +106,10 @@ const Agenda: React.FC = () => {
   async function loadEvents() {
     setLoadingEvents(true);
     try {
-      const res = await fetch(apiUrl("/api/calendar/events?days=7"));
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl("/api/calendar/events?days=7"), {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (!res.ok) throw new Error("Error al cargar eventos");
       const data = await res.json();
 
@@ -141,9 +151,13 @@ const Agenda: React.FC = () => {
 
     setSaving(true);
     try {
+      const token = localStorage.getItem('token');
       const res = await fetch(apiUrl("/api/calendar/events"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify({
           title: form.title,
           type: form.type,
@@ -315,171 +329,31 @@ const Agenda: React.FC = () => {
 
   return (
     <div className="page-inner agenda-page">
-      <style>{`
-        /* Estilos locales para Agenda (Inmovia Style) */
-        
-        /* Layout General */
-        .agenda-card {
-          background: #ffffff;
-          border-radius: 1.5rem;
-          box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
-          border: 1px solid rgba(226, 232, 240, 0.8);
-          overflow: hidden;
-        }
-        
-        /* Mini Calendario */
-        .agenda-calendar-pane {
-          background: #ffffff;
-          border-radius: 1.5rem;
-          padding: 1.5rem;
-          box-shadow: 0 4px 20px rgba(15, 23, 42, 0.03);
-          border: 1px solid rgba(226, 232, 240, 0.8);
-          margin-bottom: 1.5rem;
-        }
-        .agenda-cal-day {
-          border-radius: 50%; /* Circular */
-          transition: all 0.2s ease;
-        }
-        .agenda-cal-day:hover {
-          background-color: #f1f5f9;
-        }
-        .agenda-cal-day--selected {
-          background-color: var(--inmovia-primary) !important;
-          color: white !important;
-          box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3);
-        }
-        .agenda-cal-day--today {
-          color: var(--inmovia-primary);
-          font-weight: 700;
-          background-color: var(--inmovia-primary-soft);
-        }
-        .agenda-calendar-nav button {
-          width: 32px;
-          height: 32px;
-          border-radius: 50%;
-          border: 1px solid rgba(226, 232, 240, 0.8);
-          background: white;
-          color: var(--inmovia-text-muted);
-          cursor: pointer;
-          transition: all 0.2s;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-        .agenda-calendar-nav button:hover {
-          border-color: var(--inmovia-primary);
-          color: var(--inmovia-primary);
-        }
-
-        /* Formulario y Controles */
-        .agenda-input, .agenda-filter-select {
-          border-radius: 999px; /* Cápsula */
-          border: 1px solid rgba(203, 213, 225, 0.8);
-          padding: 0.6rem 1rem;
-          font-size: 0.9rem;
-          transition: all 0.2s;
-          outline: none;
-        }
-        .agenda-textarea {
-          border-radius: 1.5rem; /* Textarea curvo pero no cápsula */
-        }
-        .agenda-input:focus, .agenda-filter-select:focus {
-          border-color: var(--inmovia-primary);
-          box-shadow: 0 0 0 3px var(--inmovia-primary-soft);
-        }
-        .agenda-submit-btn {
-          border-radius: 999px;
-          padding: 0.75rem 1.5rem;
-          font-weight: 600;
-          background-color: var(--inmovia-primary);
-          color: white;
-          border: none;
-          cursor: pointer;
-          transition: transform 0.1s, box-shadow 0.2s;
-        }
-        .agenda-submit-btn:hover {
-          background-color: var(--inmovia-primary-strong);
-          box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
-          transform: translateY(-1px);
-        }
-
-        /* Lista de Eventos */
-        .agenda-event-item {
-          background: #f8fafc;
-          border-radius: 1rem;
-          border: 1px solid rgba(226, 232, 240, 0.6);
-          margin-bottom: 0.75rem;
-          padding: 1rem;
-          transition: all 0.2s;
-        }
-        .agenda-event-item:hover {
-          background: #ffffff;
-          box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
-          border-color: var(--inmovia-primary-soft);
-          transform: translateX(2px);
-        }
-        .agenda-event-pill {
-          background-color: #e0f2fe;
-          color: #0369a1;
-          border-radius: 999px;
-          padding: 0.2rem 0.6rem;
-          font-size: 0.75rem;
-          font-weight: 600;
-        }
-        
-        /* Chips de estado */
-        .agenda-chip {
-          border-radius: 999px;
-          padding: 0.35rem 0.85rem;
-          font-size: 0.8rem;
-          font-weight: 500;
-          display: inline-flex;
-          align-items: center;
-          gap: 0.4rem;
-        }
-        .agenda-chip--ok {
-          background-color: #dcfce7;
-          color: #166534;
-        }
-        .agenda-chip--off {
-          background-color: #f1f5f9;
-          color: #64748b;
-        }
-        .agenda-chip--error {
-          background-color: #fee2e2;
-          color: #991b1b;
-        }
-        .agenda-chip-dot {
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-          background-color: currentColor;
-        }
-      `}</style>
       <div className="agenda-layout">
         {/* Columna izquierda: mini calendario + filtros */}
         <aside className="agenda-calendar-pane">
           <div className="agenda-calendar-header">
             <h2 className="agenda-calendar-title">Calendario</h2>
-            <div className="agenda-calendar-nav">
-              <button
-                type="button"
-                onClick={() => changeMonth(-1)}
-                aria-label="Mes anterior"
-              >
-                ‹
-              </button>
-              <button
-                type="button"
-                onClick={() => changeMonth(1)}
-                aria-label="Mes siguiente"
-              >
-                ›
-              </button>
+            <div className="agenda-calendar-controls">
+              <div className="agenda-calendar-nav">
+                <button
+                  type="button"
+                  onClick={() => changeMonth(-1)}
+                  aria-label="Mes anterior"
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  onClick={() => changeMonth(1)}
+                  aria-label="Mes siguiente"
+                >
+                  ›
+                </button>
+              </div>
+              <p className="agenda-calendar-month">{monthLabel}</p>
             </div>
           </div>
-
-          <p className="agenda-calendar-month">{monthLabel}</p>
 
           <div className="agenda-filter">
             <label className="agenda-filter-label" htmlFor="typeFilter">
@@ -501,8 +375,8 @@ const Agenda: React.FC = () => {
           </div>
 
           <div className="agenda-calendar-weekdays">
-            {["L", "M", "X", "J", "V", "S", "D"].map((d) => (
-              <span key={d} className="agenda-cal-weekday">
+            {["L", "M", "M", "J", "V", "S", "D"].map((d, i) => (
+              <span key={`${d}-${i}`} className="agenda-cal-weekday">
                 {d}
               </span>
             ))}
@@ -710,20 +584,22 @@ const Agenda: React.FC = () => {
                   </select>
                 </div>
 
-                <div className="agenda-form-row">
-                  <label className="agenda-label" htmlFor="agent">
-                    Agente responsable
-                  </label>
-                  <input
-                    id="agent"
-                    name="agent"
-                    type="text"
-                    className="agenda-input"
-                    placeholder="Nombre del agente (ej: Juan Pérez)"
-                    value={form.agent}
-                    onChange={handleChange}
-                  />
-                </div>
+                {user?.role !== 'AGENTE' && (
+                  <div className="agenda-form-row">
+                    <label className="agenda-label" htmlFor="agent">
+                      Agente responsable
+                    </label>
+                    <input
+                      id="agent"
+                      name="agent"
+                      type="text"
+                      className="agenda-input"
+                      placeholder="Nombre del agente (ej: Juan Pérez)"
+                      value={form.agent}
+                      onChange={handleChange}
+                    />
+                  </div>
+                )}
 
                 <div className="agenda-form-row agenda-form-row-inline">
                   <div className="agenda-form-field">

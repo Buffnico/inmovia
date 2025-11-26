@@ -1,0 +1,11 @@
+[
+  {
+    "id": "owner-1764109805160",
+    "name": "Super Admin",
+    "email": "admin@inmovia.com",
+    "passwordHash": "$2b$10$xswij/8C1eCOoiKSwCdrKer1L5KCL6Q00BjCklWANsojlFzwHVUQC",
+    "role": "OWNER",
+    "active": true,
+    "createdAt": "2025-11-25T22:30:05.160Z"
+  }
+]

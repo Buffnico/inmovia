@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import "./Clientes.css";
 
 type TipoContacto =
   | "Amigo"
@@ -28,6 +29,7 @@ type ActivityType =
 interface Contact {
   id: string;
   agentId: string;
+  ownerId?: string;
   agenteNombre?: string;
   nombre: string;
   apellido: string;
@@ -115,9 +117,12 @@ const INFO_FIELDS = [
   },
 ];
 
+import { useAuth } from "../store/auth";
+
 const ContactoDetalle: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001/api";
 
   const [contact, setContact] = useState<Contact | null>(null);
@@ -137,7 +142,10 @@ const ContactoDetalle: React.FC = () => {
   useEffect(() => {
     if (!id) return;
     setLoading(true);
-    fetch(`${API_BASE_URL}/contacts/${id}`)
+    const token = localStorage.getItem('token');
+    fetch(`${API_BASE_URL}/contacts/${id}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
       .then(async (res) => {
         if (!res.ok) throw new Error("Error cargando contacto");
         const data = await res.json();
@@ -169,9 +177,13 @@ const ContactoDetalle: React.FC = () => {
         recordarMudanza: recordarMudanza,
       };
 
+      const token = localStorage.getItem('token');
       const res = await fetch(`${API_BASE_URL}/contacts/${contact.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify(updatedData),
       });
 
@@ -190,13 +202,18 @@ const ContactoDetalle: React.FC = () => {
     }
   };
 
+  const canEdit = user && contact && (
+    ['OWNER', 'ADMIN', 'MARTILLERO'].includes(user.role) ||
+    (user.role === 'AGENTE' && (contact.ownerId === user.id || contact.agentId === user.id))
+  );
+
   if (loading) return <div className="page-content">Cargando...</div>;
   if (error || !contact) {
     return (
       <div className="page-content">
-        <div className="card contact-detail-top-card" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <div className="card contact-detail-top-card">
           <button type="button" className="btn-icon-back" onClick={() => navigate("/contactos")}>←</button>
-          <h1 className="contact-top-title" style={{ margin: 0 }}>{error || "Contacto no encontrado"}</h1>
+          <h1 className="contact-top-title">{error || "Contacto no encontrado"}</h1>
         </div>
       </div>
     );
@@ -207,77 +224,15 @@ const ContactoDetalle: React.FC = () => {
 
   return (
     <div className="page-content">
-      <style>{`
-        .contact-detail-sidebar {
-          border-radius: 2rem !important;
-          border: 1px solid rgba(226, 232, 240, 0.8);
-          box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
-        }
-        .btn-icon-back:hover { background-color: rgba(0,0,0,0.05); }
-        .toggle-switch {
-          position: relative;
-          display: inline-block;
-          width: 44px;
-          height: 24px;
-          background-color: #e2e8f0;
-          border-radius: 999px;
-          cursor: pointer;
-          transition: background-color 0.3s ease;
-          border: none;
-          padding: 0;
-        }
-        .toggle-switch[aria-checked="true"] { background-color: var(--inmovia-primary); }
-        .toggle-thumb {
-          position: absolute;
-          top: 2px;
-          left: 2px;
-          width: 20px;
-          height: 20px;
-          background-color: white;
-          border-radius: 50%;
-          transition: transform 0.3s ease;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-        .toggle-switch[aria-checked="true"] .toggle-thumb { transform: translateX(20px); }
-        .toggle-label {
-          font-size: 0.85rem;
-          color: var(--inmovia-text-muted);
-          margin-left: 0.5rem;
-          font-weight: 500;
-        }
-        .contact-reminder-toggle-container { display: flex; alignItems: center; }
-        .contact-info-item-input {
-          width: 100%;
-          box-sizing: border-box;
-          border-radius: 1.5rem !important;
-          padding: 1rem 1.5rem !important;
-          border: 1px solid rgba(203, 213, 225, 0.8);
-          background-color: #f8fafc;
-          transition: all 0.2s ease;
-          resize: none;
-        }
-        .contact-info-item-input:focus {
-          background-color: #ffffff;
-          border-color: var(--inmovia-primary);
-          box-shadow: 0 0 0 3px var(--inmovia-primary-soft);
-          outline: none;
-        }
-        .input-date-rounded {
-            border-radius: 999px;
-            border: 1px solid #cbd5e1;
-            padding: 0.5rem 1rem;
-            font-family: inherit;
-            color: var(--inmovia-text-main);
-        }
-      `}</style>
-
-      <div className="card contact-detail-top-card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1.5rem' }}>
-        <button type="button" className="btn-icon-back" onClick={() => navigate("/contactos")} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.5rem', color: 'var(--inmovia-text-main)', padding: '0.25rem', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', lineHeight: 1 }}>←</button>
-        <h1 className="contact-top-title" style={{ margin: 0 }}>Información de contacto</h1>
+      <div className="card contact-detail-top-card">
+        <button type="button" className="btn-icon-back" onClick={() => navigate("/contactos")}>←</button>
+        <h1 className="contact-top-title">Información de contacto</h1>
         <div style={{ marginLeft: 'auto' }}>
-          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-            {saving ? "Guardando..." : "Guardar Cambios"}
-          </button>
+          {canEdit && (
+            <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+              {saving ? "Guardando..." : "Guardar Cambios"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -315,7 +270,7 @@ const ContactoDetalle: React.FC = () => {
             <h3 className="contact-section-title">Recordatorios</h3>
 
             {/* Cumpleaños */}
-            <div className="contact-reminder-row" style={{ marginBottom: '1rem' }}>
+            <div className="contact-reminder-row">
               <div style={{ marginBottom: '0.5rem' }}>
                 <div className="contact-reminder-label">Cumpleaños</div>
                 <input
