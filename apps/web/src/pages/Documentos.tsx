@@ -37,6 +37,7 @@ const MOCK_DOCS: DocumentMock[] = [
 const CATEGORIES = ["Todos", "Contratos", "Identidad", "Legal", "Planos", "Borradores", "Oficina modelos"];
 
 // --- Componente Principal ---
+// Integrates Office Models for authorized users (Owner, Admin, Martillero, Recepcionista)
 
 export default function Documentos() {
   // Estado del escáner

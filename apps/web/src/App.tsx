@@ -5,7 +5,10 @@ import Sidebar from "./components/Sidebar";
 import HeaderBar from "./components/HeaderBar";
 import IvoTFab from "./components/IvoTFab";
 
+import { useAuth } from "./store/auth";
+
 const App: React.FC = () => {
+  const { user } = useAuth();
   const location = useLocation();
   const isLanding = location.pathname === "/" || location.pathname === "" || location.pathname === "/login";
 
@@ -79,8 +82,8 @@ const App: React.FC = () => {
         </button>
       </nav>
 
-      {/* Chat flotante de Ivo-t */}
-      <IvoTFab />
+      {/* Chat flotante de Ivo-t (Solo si autenticado) */}
+      {user && <IvoTFab />}
     </div>
   );
 };

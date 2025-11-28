@@ -1,8 +1,9 @@
 // apps/web/src/pages/IvoT.tsx
 import React, { useState, useEffect, useRef } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import ivoLogo from "../assets/ivot-logo.png";
 import "./IvoT.css";
+import { useAuth } from "../store/auth";
 
 type Tool = {
   id: string;
@@ -59,43 +60,99 @@ const INITIAL_MSGS: ChatMsg[] = [
 
 // 🔹 API base: lee de VITE_API_BASE_URL y, si no existe, usa localhost.
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:3001/api";
+  (import.meta as any).env.VITE_API_BASE_URL || "http://localhost:3001/api";
 
 // 🔹 Endpoint de chat de Ivo-t
 const API_URL = `${API_BASE_URL}/ivot/chat`;
 
-async function handleSend(e: React.FormEvent) {
-  e.preventDefault();
-  const text = draft.trim();
-  if (!text || isLoading) return;
+export default function IvoT() {
+  const { user } = useAuth();
+  const [selectedToolId, setSelectedToolId] = useState<string>("chat");
+  const [messages, setMessages] = useState<ChatMsg[]>(INITIAL_MSGS);
+  const [draft, setDraft] = useState<string>("");
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const now = new Date().toLocaleTimeString("es-AR", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  // Query Params for Document Mode
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const mode = searchParams.get("mode");
+  const modelId = searchParams.get("modelId");
+  const [docModelName, setDocModelName] = useState<string>("");
 
-  const userMsg: ChatMsg = {
-    id: `u-${Date.now()}`,
-    from: "yo",
-    text,
-    time: now,
-  };
+  // Document Generation State
+  const [lastAssistantSummary, setLastAssistantSummary] = useState<string | null>(null);
+  const [showGenerateOptions, setShowGenerateOptions] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
 
-  setMessages((prev) => [...prev, userMsg]);
-  setDraft("");
-  setIsLoading(true);
+  useEffect(() => {
+    if (mode === "documentModel" && modelId) {
+      // Fetch model name
+      const token = localStorage.getItem('token');
+      fetch(`${API_BASE_URL}/documents/office-models`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.ok) {
+            const m = data.data.find((x: any) => x.id === modelId);
+            if (m) setDocModelName(m.name);
+          }
+        });
 
-  try {
-    // Preparar historial para OpenAI
-    let history = messages.concat(userMsg).map((m) => ({
-      role: m.from === "yo" ? "user" : "assistant",
-      content: m.text,
-    }));
+      setMessages([
+        {
+          id: "m-init-doc",
+          from: "ivo-t",
+          text: "Estoy acá para ayudarte a modificar o agregar cláusulas a este modelo de documento. Contame primero qué cláusula querés cambiar o qué nueva cláusula querés agregar (por ejemplo: sobre plazos, penalidades, garantías, rescisión, etc.).",
+          time: new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
+        }
+      ]);
+      setSelectedToolId("chat"); // Force chat tool
+      setShowGenerateOptions(false);
+      setLastAssistantSummary(null);
+    }
+  }, [mode, modelId]);
 
-    if (mode === "documentModel") {
-      history.unshift({
-        role: "system",
-        content: `Estás actuando como un asistente legal inmobiliario para modificar un modelo de documento (${docModelName || "seleccionado"}). 
+  const selectedTool = TOOLS.find((t) => t.id === selectedToolId) ?? TOOLS[0];
+
+  // Auto-scroll
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, showGenerateOptions]);
+
+  async function handleSend(e: React.FormEvent) {
+    e.preventDefault();
+    const text = draft.trim();
+    if (!text || isLoading) return;
+
+    const now = new Date().toLocaleTimeString("es-AR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    const userMsg: ChatMsg = {
+      id: `u-${Date.now()}`,
+      from: "yo",
+      text,
+      time: now,
+    };
+
+    setMessages((prev) => [...prev, userMsg]);
+    setDraft("");
+    setIsLoading(true);
+
+    try {
+      // Preparar historial para OpenAI
+      let history = messages.concat(userMsg).map((m) => ({
+        role: m.from === "yo" ? "user" : "assistant",
+        content: m.text,
+      }));
+
+      if (mode === "documentModel") {
+        history.unshift({
+          role: "system",
+          content: `Estás actuando como un asistente legal inmobiliario para modificar un modelo de documento (${docModelName || "seleccionado"}). 
               Tu objetivo es ayudar al usuario a redactar o modificar cláusulas.
               1. Escucha las necesidades del usuario.
               2. Propone redacciones claras y legales.
@@ -104,270 +161,337 @@ async function handleSend(e: React.FormEvent) {
                  b. Pregunta SIEMPRE: "¿En qué formato querés el archivo final? ¿Word (DOCX) o PDF?".
                  c. Incluye la advertencia: "Recordá que este documento debe ser revisado y confirmado por el martillero antes de usarse."
               `
+        });
+      }
+
+      const response = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ history }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`Error ${response.status}: ${errorData.error || response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      const botMsg: ChatMsg = {
+        id: `b-${Date.now()}`,
+        from: "ivo-t",
+        text: data.message,
+        time: new Date().toLocaleTimeString("es-AR", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      };
+
+      setMessages((prev) => [...prev, botMsg]);
+
+      // Detect summary in document mode
+      if (mode === "documentModel") {
+        setLastAssistantSummary(data.message);
+        setShowGenerateOptions(true);
+      }
+
+    } catch (error) {
+      console.error("Error al comunicarse con Ivo-t:", error);
+      const errorMsg: ChatMsg = {
+        id: `e-${Date.now()}`,
+        from: "ivo-t",
+        text: `Error conectando a ${API_URL}: ${error instanceof Error ? error.message : String(error)}`,
+        time: new Date().toLocaleTimeString("es-AR", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      };
+      setMessages((prev) => [...prev, errorMsg]);
+    } finally {
+      setIsLoading(false);
     }
-
-    const response = await fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ history }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(`Error ${response.status}: ${errorData.error || response.statusText}`);
-    }
-
-    const data = await response.json();
-
-    const botMsg: ChatMsg = {
-      id: `b-${Date.now()}`,
-      from: "ivo-t",
-      text: data.message,
-      time: new Date().toLocaleTimeString("es-AR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    };
-
-    setMessages((prev) => [...prev, botMsg]);
-
-    // Detect summary in document mode
-    if (mode === "documentModel") {
-      // Simple heuristic: if message is long enough and contains keywords or just always update last summary
-      // Ideally we would have a structured response, but for now we assume the assistant follows the system prompt
-      // and the last message from assistant IS the summary when user is done.
-      // We can show the buttons always after an assistant response in this mode, or try to be smarter.
-      // Let's show them always if there is a response, assuming the user can ignore them if not ready.
-      setLastAssistantSummary(data.message);
-      setShowGenerateOptions(true);
-    }
-  } catch (error) {
-    console.error("Error al comunicarse con Ivo-t:", error);
-    const errorMsg: ChatMsg = {
-      id: `e-${Date.now()}`,
-      from: "ivo-t",
-      text: `Error conectando a ${API_URL}: ${error instanceof Error ? error.message : String(error)}`,
-      time: new Date().toLocaleTimeString("es-AR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    };
-    setMessages((prev) => [...prev, errorMsg]);
-  } finally {
-    setIsLoading(false);
   }
-}
 
-return (
-  <div className="page-inner">
-    <div className="page-header">
-      <h1 className="page-title">Ivo-t</h1>
-      <p className="page-subtitle">
-        Asistente IA de la oficina. Diseñado para trabajar con tus documentos,
-        propiedades y agenda.
-      </p>
-    </div>
+  async function handleGenerateFromIvo(formato: 'docx' | 'pdf') {
+    if (!modelId || !lastAssistantSummary) return;
 
-    <div className="ivot-page-container">
-      {/* Sidebar de Herramientas */}
-      <aside className="ivot-sidebar">
-        <div
-          style={{
-            fontWeight: 600,
-            padding: "0 0.5rem",
-            color: "#64748b",
-            fontSize: "0.85rem",
-            textTransform: "uppercase",
-            letterSpacing: "0.05em",
-          }}
-        >
-          Herramientas
-        </div>
-        {TOOLS.map((tool) => {
-          const active = tool.id === selectedToolId;
-          return (
-            <button
-              key={tool.id}
-              type="button"
-              onClick={() => setSelectedToolId(tool.id)}
-              className={`ivot-tool-item ${active ? "active" : ""}`}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  width: "100%",
-                }}
-              >
-                <span className="ivot-tool-name">{tool.name}</span>
-                {tool.badge && (
-                  <span
-                    style={{
-                      fontSize: "0.65rem",
-                      padding: "2px 6px",
-                      borderRadius: 999,
-                      background: "rgba(59, 130, 246, 0.1)",
-                      color: "#2563eb",
-                      fontWeight: 600,
-                      border: "1px solid rgba(59, 130, 246, 0.2)",
-                    }}
-                  >
-                    {tool.badge}
-                  </span>
-                )}
-              </div>
-              <span className="ivot-tool-desc">{tool.description}</span>
-            </button>
-          );
-        })}
+    try {
+      setIsGenerating(true);
+      const token = localStorage.getItem('token');
 
-        <div
-          style={{
-            marginTop: "auto",
-            padding: "1rem",
-            fontSize: "0.8rem",
-            color: "#94a3b8",
-            textAlign: "center",
-          }}
-        >
-          <p>
-            Desde tu perfil de <strong>Owner</strong> vas a poder habilitar o
-            deshabilitar estas herramientas.
-          </p>
-        </div>
-      </aside>
+      const body = {
+        formato,
+        datosManual: {}, // Empty for now, user can edit in Word later
+        clausulasPersonalizadas: [lastAssistantSummary],
+      };
 
-      {/* Área Principal de Chat */}
-      <section className="ivot-main-area">
-        <header className="ivot-main-header">
-          <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-            <div className="ivot-chat__avatar-container">
-              <img src={ivoLogo} alt="Ivo-t" className="ivot-chat__avatar-img" />
-              <span className="ivot-chat__status-dot"></span>
-            </div>
-            <div>
-              <div style={{ fontWeight: 700, color: "#0f172a" }}>
-                {selectedTool.name}
-              </div>
-              <div style={{ fontSize: "0.8rem", color: "#64748b" }}>En línea</div>
-            </div>
+      const response = await fetch(
+        `${API_BASE_URL}/documents/office-models/${modelId}/generate`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify(body),
+        }
+      );
+
+      if (!response.ok) {
+        setMessages(prev => [...prev, {
+          id: `err-${Date.now()}`,
+          from: "ivo-t",
+          text: "Hubo un problema al generar el documento. Probá nuevamente.",
+          time: new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
+        }]);
+        return;
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+
+      const extension = formato === 'pdf' ? 'pdf' : 'docx';
+      const fileName = (docModelName || 'documento') + '-' + new Date().getTime() + '.' + extension;
+
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      setMessages(prev => [...prev, {
+        id: `succ-${Date.now()}`,
+        from: "ivo-t",
+        text: `Listo, generé el documento en formato ${extension.toUpperCase()}. Recordá que debe ser revisado y confirmado por el martillero antes de usarse.`,
+        time: new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
+      }]);
+
+      setShowGenerateOptions(false);
+
+    } catch (err) {
+      console.error(err);
+      setMessages(prev => [...prev, {
+        id: `err-${Date.now()}`,
+        from: "ivo-t",
+        text: "Ocurrió un error inesperado al generar el documento.",
+        time: new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
+      }]);
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
+  return (
+    <div className="page-inner">
+      <div className="page-header">
+        <h1 className="page-title">Ivo-t</h1>
+        <p className="page-subtitle">
+          Asistente IA de la oficina. Diseñado para trabajar con tus documentos,
+          propiedades y agenda.
+        </p>
+      </div>
+
+      <div className="ivot-page-container">
+        {/* Sidebar de Herramientas */}
+        <aside className="ivot-sidebar">
+          <div
+            style={{
+              fontWeight: 600,
+              padding: "0 0.5rem",
+              color: "#64748b",
+              fontSize: "0.85rem",
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+            }}
+          >
+            Herramientas
           </div>
+          {TOOLS.map((tool) => {
+            const active = tool.id === selectedToolId;
+            return (
+              <button
+                key={tool.id}
+                type="button"
+                onClick={() => setSelectedToolId(tool.id)}
+                className={`ivot-tool-item ${active ? "active" : ""}`}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    width: "100%",
+                  }}
+                >
+                  <span className="ivot-tool-name">{tool.name}</span>
+                  {tool.badge && (
+                    <span
+                      style={{
+                        fontSize: "0.65rem",
+                        padding: "2px 6px",
+                        borderRadius: 999,
+                        background: "rgba(59, 130, 246, 0.1)",
+                        color: "#2563eb",
+                        fontWeight: 600,
+                        border: "1px solid rgba(59, 130, 246, 0.2)",
+                      }}
+                    >
+                      {tool.badge}
+                    </span>
+                  )}
+                </div>
+                <span className="ivot-tool-desc">{tool.description}</span>
+              </button>
+            );
+          })}
 
           <div
             style={{
+              marginTop: "auto",
+              padding: "1rem",
               fontSize: "0.8rem",
               color: "#94a3b8",
-              maxWidth: "300px",
-              textAlign: "right",
+              textAlign: "center",
             }}
           >
-            Conectado a Inmovia Brain v1.0
+            <p>
+              Desde tu perfil de <strong>Owner</strong> vas a poder habilitar o
+              deshabilitar estas herramientas.
+            </p>
           </div>
-        </header>
+        </aside>
 
-        {/* Context Banner for Document Mode */}
-        {mode === "documentModel" && (
-          <div style={{
-            background: "#eff6ff",
-            borderBottom: "1px solid #dbeafe",
-            padding: "0.75rem 1rem",
-            fontSize: "0.9rem",
-            color: "#1e40af",
-            display: "flex",
-            alignItems: "center",
-            gap: "0.5rem"
-          }}>
-            <span>📝</span>
-            <span>Estás trabajando sobre el modelo de documento: <strong>{docModelName || "Cargando..."}</strong></span>
-          </div>
-        )}
-
-        {/* Conversación */}
-        <div className="ivot-chat__body" style={{ background: "transparent" }}>
-          {messages.map((m) => (
-            <div
-              key={m.id}
-              className={`ivot-message ${m.from === "yo" ? "ivot-message--user" : "ivot-message--bot"
-                }`}
-            >
-              <div className="ivot-message__bubble">{m.text}</div>
-              <div className="ivot-message__time">{m.time}</div>
-            </div>
-          ))}
-          {isLoading && (
-            <div className="ivot-message ivot-message--bot">
-              <div className="ivot-message__bubble">
-                <em>Ivo-t está escribiendo...</em>
+        {/* Área Principal de Chat */}
+        <section className="ivot-main-area">
+          <header className="ivot-main-header">
+            <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+              <div className="ivot-chat__avatar-container">
+                <img src={ivoLogo} alt="Ivo-t" className="ivot-chat__avatar-img" />
+                <span className="ivot-chat__status-dot"></span>
               </div>
-            </div>
-          )}
-
-          {/* Generate Options Panel */}
-          {mode === "documentModel" && showGenerateOptions && !isLoading && (
-            <div className="ivot-message ivot-message--bot">
-              <div className="ivot-doc-generate-panel">
-                <p style={{ margin: '0 0 0.5rem 0', fontWeight: 500 }}>
-                  ¿Querés que genere el documento con estas cláusulas?
-                </p>
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                  <button
-                    onClick={() => handleGenerateFromIvo('docx')}
-                    className="btn btn-primary btn-sm"
-                    disabled={isGenerating}
-                  >
-                    {isGenerating ? "Generando..." : "Generar en Word (DOCX)"}
-                  </button>
-                  <button
-                    onClick={() => handleGenerateFromIvo('pdf')}
-                    className="btn btn-secondary btn-sm"
-                    disabled={isGenerating}
-                  >
-                    {isGenerating ? "Generando..." : "Generar en PDF"}
-                  </button>
+              <div>
+                <div style={{ fontWeight: 700, color: "#0f172a" }}>
+                  {selectedTool.name}
                 </div>
-                <small style={{ color: '#64748b', fontSize: '0.75rem' }}>
-                  Recordá que el documento debe ser revisado y confirmado por el martillero antes de usarse.
-                </small>
+                <div style={{ fontSize: "0.8rem", color: "#64748b" }}>En línea</div>
               </div>
+            </div>
+
+            <div
+              style={{
+                fontSize: "0.8rem",
+                color: "#94a3b8",
+                maxWidth: "300px",
+                textAlign: "right",
+              }}
+            >
+              Conectado a Inmovia Brain v1.0
+            </div>
+          </header>
+
+          {/* Context Banner for Document Mode */}
+          {mode === "documentModel" && (
+            <div style={{
+              background: "#eff6ff",
+              borderBottom: "1px solid #dbeafe",
+              padding: "0.75rem 1rem",
+              fontSize: "0.9rem",
+              color: "#1e40af",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem"
+            }}>
+              <span>📝</span>
+              <span>Estás trabajando sobre el modelo de documento: <strong>{docModelName || "Cargando..."}</strong></span>
             </div>
           )}
 
-          <div ref={messagesEndRef} />
-        </div>
+          {/* Conversación */}
+          <div className="ivot-chat__body" style={{ background: "transparent" }}>
+            {messages.map((m) => (
+              <div
+                key={m.id}
+                className={`ivot-message ${m.from === "yo" ? "ivot-message--user" : "ivot-message--bot"
+                  }`}
+              >
+                <div className="ivot-message__bubble">{m.text}</div>
+                <div className="ivot-message__time">{m.time}</div>
+              </div>
+            ))}
+            {isLoading && (
+              <div className="ivot-message ivot-message--bot">
+                <div className="ivot-message__bubble">
+                  <em>Ivo-t está escribiendo...</em>
+                </div>
+              </div>
+            )}
 
-        {/* Input */}
-        <form className="ivot-chat__input-area" onSubmit={handleSend}>
-          <input
-            type="text"
-            className="ivot-chat__input-field"
-            placeholder={`Escribí tu consulta para ${selectedTool.name}...`}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            disabled={isLoading}
-          />
-          <button
-            type="submit"
-            className="ivot-chat__send-btn"
-            disabled={isLoading}
-          >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+            {/* Generate Options Panel */}
+            {mode === "documentModel" && showGenerateOptions && !isLoading && (
+              <div className="ivot-message ivot-message--bot">
+                <div className="ivot-doc-generate-panel">
+                  <p style={{ margin: '0 0 0.5rem 0', fontWeight: 500 }}>
+                    ¿Querés que genere el documento con estas cláusulas?
+                  </p>
+                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                    <button
+                      onClick={() => handleGenerateFromIvo('docx')}
+                      className="btn btn-primary btn-sm"
+                      disabled={isGenerating}
+                    >
+                      {isGenerating ? "Generando..." : "Generar en Word (DOCX)"}
+                    </button>
+                    <button
+                      onClick={() => handleGenerateFromIvo('pdf')}
+                      className="btn btn-secondary btn-sm"
+                      disabled={isGenerating}
+                    >
+                      {isGenerating ? "Generando..." : "Generar en PDF"}
+                    </button>
+                  </div>
+                  <small style={{ color: '#64748b', fontSize: '0.75rem' }}>
+                    Recordá que el documento debe ser revisado y confirmado por el martillero antes de usarse.
+                  </small>
+                </div>
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Input */}
+          <form className="ivot-chat__input-area" onSubmit={handleSend}>
+            <input
+              type="text"
+              className="ivot-chat__input-field"
+              placeholder={`Escribí tu consulta para ${selectedTool.name}...`}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              disabled={isLoading}
+            />
+            <button
+              type="submit"
+              className="ivot-chat__send-btn"
+              disabled={isLoading}
             >
-              <line x1="22" y1="2" x2="11" y2="13"></line>
-              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-            </svg>
-          </button>
-        </form>
-      </section>
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </button>
+          </form>
+        </section>
+      </div>
     </div>
-  </div>
-);
+  );
 }
