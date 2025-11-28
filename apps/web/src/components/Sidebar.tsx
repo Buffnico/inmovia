@@ -1,8 +1,8 @@
 import React from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import { useAuth } from "../store/auth";
 import { useOffice } from "../context/OfficeContext";
-import { ROLES, Role } from "../config/roles";
+import { Role } from "../config/roles";
 
 type NavItem = {
   to: string;
@@ -19,6 +19,7 @@ const navItems: NavItem[] = [
   { to: "/documentos", label: "Documentos", icon: "📄" },
   { to: "/agenda", label: "Agenda & recordatorios", icon: "📅" },
   { to: "/chat-interno", label: "Chat interno", icon: "💬" },
+  { to: "/alquileres", label: "Alquileres", icon: "🔑" },
   { to: "/redes", label: "Redes", icon: "📱" },
   {
     to: "/whatsapp",
@@ -33,30 +34,11 @@ const navItems: NavItem[] = [
     iconClass: "sidebar__link-icon--ivot",
   },
   { to: "/edu", label: "Inmovia Edu", icon: "🎓" },
-  { to: "/perfil", label: "Mi Perfil", icon: "👤" },
-  {
-    to: "/configuracion",
-    label: "Configuración",
-    icon: "⚙️",
-    allowedRoles: [ROLES.OWNER]
-  },
-  {
-    to: "/usuarios",
-    label: "Usuarios",
-    icon: "👥",
-    allowedRoles: [ROLES.OWNER, ROLES.ADMIN]
-  },
 ];
 
 const Sidebar: React.FC<{ isOpen?: boolean; onClose?: () => void }> = ({ isOpen, onClose }) => {
-  const { logout, user } = useAuth();
+  const { user } = useAuth();
   const { officeConfig } = useOffice();
-  const navigate = useNavigate();
-
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
-  };
 
   // Filter items based on active modules AND roles
   const filteredItems = navItems.filter(item => {
@@ -119,17 +101,13 @@ const Sidebar: React.FC<{ isOpen?: boolean; onClose?: () => void }> = ({ isOpen,
         ))}
       </nav>
 
+      {/* Footer removed as logout is now in header */}
       <div className="sidebar__footer">
-        <button
-          type="button"
-          className="sidebar__logout"
-          onClick={handleLogout}
-        >
-          Cerrar sesión
-        </button>
+        {/* Optional: Add version or other info here if needed */}
       </div>
     </aside>
   );
 };
 
 export default Sidebar;
+

@@ -7,6 +7,7 @@ const contactsRouter = require('./contacts');
 const propertiesRouter = require('./properties');
 const documentsRouter = require('./documents');
 const ivotRouter = require('./ivot');
+const alquileresRouter = require('./alquileres');
 
 // Import Google Calendar module (located in parent src/ folder)
 const googleCalendarRouter = require('../googleCalendar');
@@ -20,6 +21,9 @@ router.use('/contacts', contactsRouter);
 router.use('/properties', propertiesRouter);
 router.use('/documents', documentsRouter);
 router.use('/ivot', ivotRouter);
+router.use('/alquileres', alquileresRouter);
+router.use('/notificaciones', require('./notifications'));
+router.use('/reminders', require('./reminders'));
 
 // Google Calendar Integration
 // This router handles /api/calendar/status, /api/calendar/connect, /api/calendar/events, etc.

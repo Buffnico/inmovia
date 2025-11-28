@@ -1,69 +1,26 @@
 const express = require('express');
 const router = express.Router();
 const { handleContactReminders } = require('../services/contactRemindersService');
-
-const { canReadContact, canEditContact, ROLES } = require('../utils/permissions');
-
-// --- MOCK DATABASE (In-Memory) ---
-let contacts = [
-    {
-        id: "c1",
-        agentId: "agente1", // Mock ID
-        ownerId: "agente1",
-        agenteNombre: "Agente Juan",
-        nombre: "María",
-        apellido: "Pérez",
-        telefonoPrincipal: "+54 11 1234-5678",
-        emailPrincipal: "maria.perez@example.com",
-        tipoContacto: "Cliente comprador",
-        etapa: "En seguimiento",
-        origen: "Portal",
-        fechaCumpleanios: "1990-05-12",
-        recordarCumpleanios: false,
-        fechaMudanza: "2024-03-01",
-        recordarMudanza: false,
-        direccion: "Av. Siempre Viva 123",
-        ciudad: "Lomas de Zamora",
-        provincia: "Buenos Aires",
-        pais: "Argentina",
-        cumpleCalendarEventId: null,
-        mudanzaCalendarEventId: null,
-        linkedPropertyId: "p1" // Linked property for Receptionist access test
-    },
-    {
-        id: "c2",
-        agentId: "agente1",
-        ownerId: "agente1",
-        agenteNombre: "Agente Juan",
-        nombre: "Carlos",
-        apellido: "Gómez",
-        telefonoPrincipal: "+54 11 2222-3333",
-        emailPrincipal: "carlos.gomez@example.com",
-        tipoContacto: "Posible cliente",
-        etapa: "Nuevo",
-        origen: "Redes",
-        recordarCumpleanios: false,
-        recordarMudanza: false,
-    },
-    {
-        id: "c3",
-        agentId: "a2",
-        ownerId: "a2",
-        agenteNombre: "Recepcionista Laura",
-        nombre: "Laura",
-        apellido: "Sosa",
-        telefonoPrincipal: "+54 11 4444-5555",
-        emailPrincipal: "laura.sosa@example.com",
-        tipoContacto: "Proveedor",
-        etapa: "Cliente activo",
-        origen: "Recomendado",
-        recordarCumpleanios: false,
-        recordarMudanza: false,
-    },
-];
+const ContactModel = require('../models/contactModel');
+const PropertyModel = require('../models/propertyModel');
+const { canReadContact, canEditContact, canReadProperty, ROLES } = require('../utils/permissions');
 
 // GET /api/contacts - List all contacts
 router.get('/', (req, res) => {
+    const { search } = req.query;
+    let contacts = ContactModel.findAll();
+
+    // Filter by search term if provided
+    if (search) {
+        const term = search.toLowerCase();
+        contacts = contacts.filter(c =>
+            (c.nombre && c.nombre.toLowerCase().includes(term)) ||
+            (c.apellido && c.apellido.toLowerCase().includes(term)) ||
+            (c.emailPrincipal && c.emailPrincipal.toLowerCase().includes(term)) ||
+            (c.telefonoPrincipal && c.telefonoPrincipal.includes(term))
+        );
+    }
+
     const visibleContacts = contacts.filter(c => canReadContact(req.user, c));
     res.json({
         ok: true,
@@ -73,7 +30,7 @@ router.get('/', (req, res) => {
 
 // GET /api/contacts/:id - Get contact by ID
 router.get('/:id', (req, res) => {
-    const contact = contacts.find(c => c.id === req.params.id);
+    const contact = ContactModel.findById(req.params.id);
     if (!contact) {
         return res.status(404).json({ ok: false, message: "Contacto no encontrado" });
     }
@@ -85,6 +42,29 @@ router.get('/:id', (req, res) => {
     res.json({
         ok: true,
         data: contact
+    });
+});
+
+// GET /api/contacts/:id/properties - Get properties associated with a contact
+router.get('/:id/properties', (req, res) => {
+    const contact = ContactModel.findById(req.params.id);
+    if (!contact) {
+        return res.status(404).json({ ok: false, message: "Contacto no encontrado" });
+    }
+
+    if (!canReadContact(req.user, contact)) {
+        return res.status(403).json({ ok: false, message: "No tienes permiso para ver este contacto" });
+    }
+
+    // Find properties where contactId matches
+    const properties = PropertyModel.findByContactId(contact.id);
+
+    // Filter properties based on user permissions
+    const visibleProperties = properties.filter(p => canReadProperty(req.user, p));
+
+    res.json({
+        ok: true,
+        data: visibleProperties
     });
 });
 
@@ -104,47 +84,45 @@ router.post('/', (req, res) => {
         newContact.ownerId = req.user.id;
     }
 
-    contacts.push(newContact);
+    const created = ContactModel.create(newContact);
     res.json({
         ok: true,
         message: 'Contacto creado',
-        data: newContact
+        data: created
     });
 });
 
 // PUT /api/contacts/:id - Update contact
 router.put('/:id', async (req, res) => {
-    const index = contacts.findIndex(c => c.id === req.params.id);
-    if (index === -1) {
+    const oldContact = ContactModel.findById(req.params.id);
+    if (!oldContact) {
         return res.status(404).json({ ok: false, message: "Contacto no encontrado" });
     }
-
-    const oldContact = { ...contacts[index] };
 
     if (!canEditContact(req.user, oldContact)) {
         return res.status(403).json({ ok: false, message: "No tienes permiso para editar este contacto" });
     }
 
-    const updatedContact = { ...oldContact, ...req.body };
+    let updates = { ...req.body };
 
     // Prevent ownership change by agents
     if (req.user.role === ROLES.AGENTE) {
-        updatedContact.ownerId = oldContact.ownerId;
+        updates.ownerId = oldContact.ownerId;
     }
 
     // 1. Procesar recordatorios en Calendar
-    const calendarUpdates = await handleContactReminders(oldContact, updatedContact);
+    const calendarUpdates = await handleContactReminders(oldContact, { ...oldContact, ...updates });
 
     // 2. Actualizar IDs de eventos si cambiaron
     if (calendarUpdates.cumpleCalendarEventId !== undefined) {
-        updatedContact.cumpleCalendarEventId = calendarUpdates.cumpleCalendarEventId;
+        updates.cumpleCalendarEventId = calendarUpdates.cumpleCalendarEventId;
     }
     if (calendarUpdates.mudanzaCalendarEventId !== undefined) {
-        updatedContact.mudanzaCalendarEventId = calendarUpdates.mudanzaCalendarEventId;
+        updates.mudanzaCalendarEventId = calendarUpdates.mudanzaCalendarEventId;
     }
 
     // 3. Guardar cambios
-    contacts[index] = updatedContact;
+    const updatedContact = ContactModel.update(req.params.id, updates);
 
     res.json({
         ok: true,
@@ -155,14 +133,14 @@ router.put('/:id', async (req, res) => {
 
 // DELETE /api/contacts/:id - Delete contact
 router.delete('/:id', (req, res) => {
-    const contact = contacts.find(c => c.id === req.params.id);
+    const contact = ContactModel.findById(req.params.id);
     if (!contact) return res.status(404).json({ ok: false, message: "Contacto no encontrado" });
 
     if (!canEditContact(req.user, contact)) {
         return res.status(403).json({ ok: false, message: "No tienes permiso para eliminar este contacto" });
     }
 
-    contacts = contacts.filter(c => c.id !== req.params.id);
+    ContactModel.delete(req.params.id);
     res.json({
         ok: true,
         message: 'Contacto eliminado'

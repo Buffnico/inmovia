@@ -1,58 +1,57 @@
 const fs = require('fs');
 const path = require('path');
 
-const DATA_FILE = path.join(__dirname, '../data/officeConfig.json');
+const DATA_FILE = path.join(__dirname, '../data/officeModels.json');
 
-const DEFAULT_CONFIG = {
-    officeName: "Inmovia Office",
-    brandName: "Inmovia",
-    officeAddress: "",
-    officeCity: "",
-    marketArea: "",
-    defaultCurrency: "USD",
-    dateFormat: "DD/MM/YYYY",
-    timeFormat: "24h",
-    timezone: "America/Argentina/Buenos_Aires",
-    branding: {
-        primaryColor: "#0f172a",
-        secondaryColor: "#3b82f6",
-        logoUrl: ""
-    },
-    modules: {
-        properties: true,
-        agenda: true,
-        contacts: true,
-        whatsapp: true,
-        edu: true,
-        scanner: true,
-        social: true,
-        ivot: true
-    }
-};
+// Ensure data directory exists
+const dataDir = path.dirname(DATA_FILE);
+if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+}
 
-function readConfig() {
+function readModels() {
     if (!fs.existsSync(DATA_FILE)) {
-        return DEFAULT_CONFIG;
+        return [];
     }
+    const data = fs.readFileSync(DATA_FILE, 'utf-8');
     try {
-        const data = fs.readFileSync(DATA_FILE, 'utf-8');
         return JSON.parse(data);
     } catch (e) {
-        return DEFAULT_CONFIG;
+        return [];
     }
 }
 
-function writeConfig(config) {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(config, null, 2));
+function writeModels(models) {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(models, null, 2));
 }
 
 const OfficeModel = {
-    get: () => readConfig(),
-    update: (newConfig) => {
-        const current = readConfig();
-        const updated = { ...current, ...newConfig };
-        writeConfig(updated);
-        return updated;
+    findAll: () => readModels(),
+    findById: (id) => readModels().find(m => m.id === id),
+    create: (model) => {
+        const models = readModels();
+        models.push(model);
+        writeModels(models);
+        return model;
+    },
+    update: (id, updates) => {
+        const models = readModels();
+        const index = models.findIndex(m => m.id === id);
+        if (index === -1) return null;
+
+        models[index] = { ...models[index], ...updates, updatedAt: new Date().toISOString() };
+        writeModels(models);
+        return models[index];
+    },
+    delete: (id) => {
+        let models = readModels();
+        const initialLength = models.length;
+        models = models.filter(m => m.id !== id);
+        if (models.length !== initialLength) {
+            writeModels(models);
+            return true;
+        }
+        return false;
     }
 };
 

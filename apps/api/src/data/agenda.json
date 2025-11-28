@@ -1,0 +1,22 @@
+[
+    {
+        "id": "e1",
+        "title": "Visita Propiedad P1",
+        "date": "2025-11-28",
+        "startTime": "10:00",
+        "endTime": "11:00",
+        "type": "Visita con comprador",
+        "assignedUserId": "agente1",
+        "agent": "Agente Juan"
+    },
+    {
+        "id": "e2",
+        "title": "Reunión de equipo",
+        "date": "2025-11-29",
+        "startTime": "09:00",
+        "endTime": "10:00",
+        "type": "Reunión interna",
+        "assignedUserId": "admin",
+        "agent": "Admin"
+    }
+]

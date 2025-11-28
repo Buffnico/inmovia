@@ -34,6 +34,7 @@ export type Propiedad = {
     email: string;
     celular: string;
   };
+  contactId?: string;
 };
 
 import { useAuth } from "../store/auth";

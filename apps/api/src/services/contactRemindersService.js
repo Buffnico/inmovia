@@ -1,129 +1,107 @@
-const googleCalendar = require('../googleCalendar');
+const AgendaModel = require('../models/agendaModel');
 
 /**
- * Maneja la lógica de recordatorios de cumpleaños y mudanza en Google Calendar.
+ * Maneja la lógica de recordatorios en la Agenda interna.
  * 
- * @param {Object} oldContact - Estado anterior del contacto (para detectar cambios).
+ * @param {Object} oldContact - Estado anterior del contacto.
  * @param {Object} newContact - Nuevo estado del contacto.
- * @returns {Promise<Object>} - Retorna un objeto con los IDs de eventos actualizados { cumpleCalendarEventId, mudanzaCalendarEventId }
+ * @returns {Promise<Object>} - Retorna objeto vacío o info útil (ya no dependemos de IDs externos).
  */
 async function handleContactReminders(oldContact, newContact) {
-    const resultIds = {
-        cumpleCalendarEventId: newContact.cumpleCalendarEventId || null,
-        mudanzaCalendarEventId: newContact.mudanzaCalendarEventId || null
-    };
 
-    // --- CUMPLEAÑOS ---
-    try {
-        if (newContact.recordarCumpleanios && newContact.fechaCumpleanios) {
-            // Caso: Activar o Actualizar
-            const eventData = {
-                summary: `🎂 Cumpleaños de ${newContact.nombre} ${newContact.apellido}`,
-                description: `Recordatorio de cumpleaños.\nContacto: ${newContact.nombre} ${newContact.apellido}\nLink: #/contactos/${newContact.id}`,
-                start: {
-                    date: newContact.fechaCumpleanios, // YYYY-MM-DD
-                    timeZone: 'America/Argentina/Buenos_Aires'
-                },
-                end: {
-                    date: newContact.fechaCumpleanios, // Google Calendar all-day events are inclusive start, exclusive end? Usually for single day start=end is fine or end=start+1
-                    // Para eventos de todo el día, Google recomienda start.date y end.date. 
-                    // Si es un solo día, end debería ser el día siguiente.
-                    // Pero para recurrencia anual, mejor definimos RRULE.
-                },
-                recurrence: ['RRULE:FREQ=YEARLY'],
-                extendedProperties: {
-                    private: {
-                        type: 'CUMPLE',
-                        contactId: newContact.id
-                    }
-                }
-            };
+    // 1. CUMPLEAÑOS
+    // Borrar futuros para regenerar (estrategia simple para mantener consistencia)
+    AgendaModel.deleteFutureEventsByContact(newContact.id, ['cumpleanios']);
 
-            // Ajuste de fecha de fin para evento de todo el día (start + 1 día)
-            const startDate = new Date(newContact.fechaCumpleanios);
-            const endDate = new Date(startDate);
-            endDate.setDate(endDate.getDate() + 1);
-            eventData.end.date = endDate.toISOString().split('T')[0];
+    if (newContact.recordarCumpleanios && newContact.fechaCumpleanios) {
+        const events = [];
+        const [year, month, day] = newContact.fechaCumpleanios.split('-').map(Number);
 
+        // Generar próximos 5 años
+        const today = new Date();
+        const currentYear = today.getFullYear();
 
-            if (resultIds.cumpleCalendarEventId) {
-                // Ya existía, actualizamos
-                // Solo si cambió la fecha o el nombre
-                if (oldContact.fechaCumpleanios !== newContact.fechaCumpleanios ||
-                    oldContact.nombre !== newContact.nombre ||
-                    oldContact.apellido !== newContact.apellido) {
-                    console.log(`[ContactService] Actualizando evento cumple ${resultIds.cumpleCalendarEventId}`);
-                    await googleCalendar.updateEvent(resultIds.cumpleCalendarEventId, eventData);
-                }
-            } else {
-                // No existía, creamos
-                console.log(`[ContactService] Creando evento cumple para ${newContact.nombre}`);
-                const created = await googleCalendar.createEvent(eventData);
-                resultIds.cumpleCalendarEventId = created.id;
-            }
+        for (let i = 0; i < 5; i++) {
+            const targetYear = currentYear + i;
+            // Crear fecha en string YYYY-MM-DD
+            // Nota: mes es 0-indexed en Date, pero input es 1-indexed.
+            // Simple string manipulation is safer for YYYY-MM-DD
+            const dateStr = `${targetYear}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-        } else {
-            // Caso: Desactivar (o falta fecha)
-            if (resultIds.cumpleCalendarEventId) {
-                console.log(`[ContactService] Borrando evento cumple ${resultIds.cumpleCalendarEventId}`);
-                await googleCalendar.deleteEvent(resultIds.cumpleCalendarEventId).catch(err => console.warn("Error borrando evento (puede que ya no exista):", err.message));
-                resultIds.cumpleCalendarEventId = null;
-            }
+            if (dateStr < today.toISOString().split('T')[0]) continue; // Skip past
+
+            events.push({
+                contactId: newContact.id,
+                title: `🎂 Cumpleaños de ${newContact.nombre} ${newContact.apellido}`,
+                date: dateStr,
+                startTime: "09:00", // Default
+                endTime: "10:00",
+                type: "cumpleanios",
+                assignedUserId: newContact.ownerId || newContact.agentId, // Assign to owner
+                description: `Recordatorio de cumpleaños. Link: #/contactos/${newContact.id}`
+            });
         }
-    } catch (error) {
-        console.error("Error gestionando recordatorio de cumpleaños:", error.message);
-        // No fallamos la request completa, solo logueamos
+        AgendaModel.createMany(events);
     }
 
-    // --- MUDANZA ---
-    try {
-        if (newContact.recordarMudanza && newContact.fechaMudanza) {
-            const eventData = {
-                summary: `📦 Aniversario mudanza de ${newContact.nombre} ${newContact.apellido}`,
-                description: `Recordatorio de aniversario de mudanza.\nContacto: ${newContact.nombre} ${newContact.apellido}\nLink: #/contactos/${newContact.id}`,
-                start: {
-                    date: newContact.fechaMudanza,
-                    timeZone: 'America/Argentina/Buenos_Aires'
-                },
-                end: {}, // Se llena abajo
-                recurrence: ['RRULE:FREQ=YEARLY'],
-                extendedProperties: {
-                    private: {
-                        type: 'MUDANZA',
-                        contactId: newContact.id
-                    }
-                }
-            };
+    // 2. MUDANZA
+    AgendaModel.deleteFutureEventsByContact(newContact.id, ['mudanza']);
 
-            const startDate = new Date(newContact.fechaMudanza);
-            const endDate = new Date(startDate);
-            endDate.setDate(endDate.getDate() + 1);
-            eventData.end.date = endDate.toISOString().split('T')[0];
+    if (newContact.recordarMudanza && newContact.fechaMudanza) {
+        const events = [];
+        const [year, month, day] = newContact.fechaMudanza.split('-').map(Number);
+        const today = new Date();
+        const currentYear = today.getFullYear();
 
-            if (resultIds.mudanzaCalendarEventId) {
-                if (oldContact.fechaMudanza !== newContact.fechaMudanza ||
-                    oldContact.nombre !== newContact.nombre) {
-                    console.log(`[ContactService] Actualizando evento mudanza ${resultIds.mudanzaCalendarEventId}`);
-                    await googleCalendar.updateEvent(resultIds.mudanzaCalendarEventId, eventData);
-                }
-            } else {
-                console.log(`[ContactService] Creando evento mudanza para ${newContact.nombre}`);
-                const created = await googleCalendar.createEvent(eventData);
-                resultIds.mudanzaCalendarEventId = created.id;
-            }
+        for (let i = 0; i < 5; i++) {
+            const targetYear = currentYear + i;
+            const dateStr = `${targetYear}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-        } else {
-            if (resultIds.mudanzaCalendarEventId) {
-                console.log(`[ContactService] Borrando evento mudanza ${resultIds.mudanzaCalendarEventId}`);
-                await googleCalendar.deleteEvent(resultIds.mudanzaCalendarEventId).catch(err => console.warn("Error borrando evento:", err.message));
-                resultIds.mudanzaCalendarEventId = null;
-            }
+            if (dateStr < today.toISOString().split('T')[0]) continue;
+
+            events.push({
+                contactId: newContact.id,
+                title: `📦 Aniversario mudanza ${newContact.nombre} ${newContact.apellido}`,
+                date: dateStr,
+                startTime: "09:00",
+                endTime: "10:00",
+                type: "mudanza",
+                assignedUserId: newContact.ownerId || newContact.agentId,
+                description: `Aniversario de mudanza. Link: #/contactos/${newContact.id}`
+            });
         }
-    } catch (error) {
-        console.error("Error gestionando recordatorio de mudanza:", error.message);
+        AgendaModel.createMany(events);
     }
 
-    return resultIds;
+    // 3. FEEDBACK RECURRENTE
+    AgendaModel.deleteFutureEventsByContact(newContact.id, ['feedback']);
+
+    if (newContact.feedbackReminder && newContact.feedbackReminder.enabled) {
+        const { frequencyDays, occurrences, note, startDate } = newContact.feedbackReminder;
+        const start = startDate ? new Date(startDate) : new Date();
+        const events = [];
+
+        for (let i = 0; i < occurrences; i++) {
+            const date = new Date(start);
+            date.setDate(date.getDate() + (i * frequencyDays));
+
+            const dateStr = date.toISOString().split('T')[0];
+
+            events.push({
+                contactId: newContact.id,
+                title: `Feedback - ${newContact.nombre} ${newContact.apellido}`,
+                date: dateStr,
+                startTime: "10:00",
+                endTime: "10:30",
+                type: "feedback",
+                assignedUserId: newContact.ownerId || newContact.agentId,
+                description: `${note || 'Seguimiento programado'}\nLink: #/contactos/${newContact.id}`
+            });
+        }
+        AgendaModel.createMany(events);
+    }
+
+    return {}; // No necesitamos devolver IDs ya que no los guardamos en el contacto
 }
 
 module.exports = {

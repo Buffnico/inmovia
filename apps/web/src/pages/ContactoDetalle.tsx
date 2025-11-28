@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, Link } from "react-router-dom";
 import "./Clientes.css";
 
 type TipoContacto =
@@ -46,6 +46,17 @@ interface Contact {
   ciudad?: string;
   provincia?: string;
   pais?: string;
+  feedbackReminder?: {
+    enabled: boolean;
+    frequencyDays: number;
+    occurrences: number;
+    note: string;
+    startDate: string;
+  };
+  contactType?: string;
+  status?: string;
+  source?: string;
+  sourceDetail?: string;
 }
 
 interface ContactActivity {
@@ -118,6 +129,7 @@ const INFO_FIELDS = [
 ];
 
 import { useAuth } from "../store/auth";
+import { Propiedad } from "./Propiedades";
 
 const ContactoDetalle: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -126,11 +138,21 @@ const ContactoDetalle: React.FC = () => {
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001/api";
 
   const [contact, setContact] = useState<Contact | null>(null);
+  const [properties, setProperties] = useState<Propiedad[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<"actividades" | "info" | "archivos">("actividades");
+  const [activeTab, setActiveTab] = useState<"actividades" | "info" | "archivos" | "propiedades" | "historial">("actividades");
+
+  // CRM Fields State
+  const [contactType, setContactType] = useState("");
+  const [status, setStatus] = useState("");
+  const [source, setSource] = useState("");
+  const [sourceDetail, setSourceDetail] = useState("");
+
+  // History State
+  const [historyEvents, setHistoryEvents] = useState<any[]>([]);
 
   // Estados locales para edición
   const [fechaCumple, setFechaCumple] = useState("");
@@ -138,27 +160,82 @@ const ContactoDetalle: React.FC = () => {
   const [fechaMudanza, setFechaMudanza] = useState("");
   const [recordarMudanza, setRecordarMudanza] = useState(false);
 
-  // Cargar contacto
+  // Feedback Reminder State
+  const [feedbackEnabled, setFeedbackEnabled] = useState(false);
+  const [feedbackFreq, setFeedbackFreq] = useState(7);
+  const [feedbackOccurrences, setFeedbackOccurrences] = useState(3);
+  const [feedbackNote, setFeedbackNote] = useState("");
+  const [feedbackStartDate, setFeedbackStartDate] = useState("");
+  const [isCustomFreq, setIsCustomFreq] = useState(false);
+
+  const [futureEvents, setFutureEvents] = useState<any[]>([]);
+
+  // Cargar contacto y propiedades
   useEffect(() => {
     if (!id) return;
     setLoading(true);
     const token = localStorage.getItem('token');
-    fetch(`${API_BASE_URL}/contacts/${id}`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error("Error cargando contacto");
-        const data = await res.json();
-        if (data.ok && data.data) {
-          const c = data.data;
+
+    Promise.all([
+      fetch(`${API_BASE_URL}/contacts/${id}`, { headers: { 'Authorization': `Bearer ${token}` } }),
+      fetch(`${API_BASE_URL}/contacts/${id}/properties`, { headers: { 'Authorization': `Bearer ${token}` } }),
+      fetch(`${API_BASE_URL}/contacts/${id}`, { headers: { 'Authorization': `Bearer ${token}` } }),
+      fetch(`${API_BASE_URL}/contacts/${id}/properties`, { headers: { 'Authorization': `Bearer ${token}` } }),
+      fetch(`${API_BASE_URL}/agenda?contactId=${id}&futureOnly=true`, { headers: { 'Authorization': `Bearer ${token}` } }),
+      fetch(`${API_BASE_URL}/agenda?contactId=${id}`, { headers: { 'Authorization': `Bearer ${token}` } }) // History (all events)
+    ])
+      .then(async ([resContact, resProps, resFuture, resHistory]) => {
+        if (!resContact.ok) throw new Error("Error cargando contacto");
+
+        const dataContact = await resContact.json();
+        if (dataContact.ok && dataContact.data) {
+          const c = dataContact.data;
           setContact(c);
           // Inicializar estados locales
           setFechaCumple(c.fechaCumpleanios || "");
           setRecordarCumple(c.recordarCumpleanios || false);
           setFechaMudanza(c.fechaMudanza || "");
           setRecordarMudanza(c.recordarMudanza || false);
+
+          if (c.feedbackReminder) {
+            setFeedbackEnabled(c.feedbackReminder.enabled);
+            setFeedbackFreq(c.feedbackReminder.frequencyDays);
+            setFeedbackOccurrences(c.feedbackReminder.occurrences);
+            setFeedbackNote(c.feedbackReminder.note);
+            setFeedbackStartDate(c.feedbackReminder.startDate);
+            setIsCustomFreq(![7, 15, 30].includes(c.feedbackReminder.frequencyDays));
+          } else {
+            setFeedbackStartDate(new Date().toISOString().split('T')[0]);
+          }
+
+          // Initialize CRM fields
+          setContactType(c.contactType || "posible_comprador");
+          setStatus(c.status || "nuevo_lead");
+          setSource(c.source || "otro");
+          setSourceDetail(c.sourceDetail || "");
         } else {
           setError("Contacto no encontrado");
+        }
+
+        if (resProps.ok) {
+          const dataProps = await resProps.json();
+          if (dataProps.ok) {
+            setProperties(dataProps.data);
+          }
+        }
+
+        if (resFuture.ok) {
+          const dataFuture = await resFuture.json();
+          if (dataFuture.ok) setFutureEvents(dataFuture.data);
+        }
+
+        if (resHistory.ok) {
+          const dataHistory = await resHistory.json();
+          if (dataHistory.ok) {
+            // Sort by date desc
+            const sorted = dataHistory.data.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            setHistoryEvents(sorted);
+          }
         }
       })
       .catch((err) => setError(err.message))
@@ -175,6 +252,17 @@ const ContactoDetalle: React.FC = () => {
         recordarCumpleanios: recordarCumple,
         fechaMudanza: fechaMudanza,
         recordarMudanza: recordarMudanza,
+        feedbackReminder: {
+          enabled: feedbackEnabled,
+          frequencyDays: feedbackFreq,
+          occurrences: feedbackOccurrences,
+          note: feedbackNote,
+          startDate: feedbackStartDate
+        },
+        contactType,
+        status,
+        source,
+        sourceDetail
       };
 
       const token = localStorage.getItem('token');
@@ -257,6 +345,55 @@ const ContactoDetalle: React.FC = () => {
           </div>
 
           <div className="contact-section">
+            <h3 className="contact-section-title">Datos CRM</h3>
+            <div className="form-group mb-2">
+              <label className="form-label" style={{ fontSize: '0.85rem' }}>Tipo</label>
+              <select className="form-select form-select-sm" value={contactType} onChange={e => setContactType(e.target.value)}>
+                <option value="posible_comprador">Posible Comprador</option>
+                <option value="posible_vendedor">Posible Vendedor</option>
+                <option value="cliente_activo">Cliente Activo</option>
+                <option value="propietario">Propietario</option>
+                <option value="inquilino">Inquilino</option>
+                <option value="referido">Referido</option>
+                <option value="amigo_familia">Amigo / Familia</option>
+              </select>
+            </div>
+            <div className="form-group mb-2">
+              <label className="form-label" style={{ fontSize: '0.85rem' }}>Estado</label>
+              <select className="form-select form-select-sm" value={status} onChange={e => setStatus(e.target.value)}>
+                <option value="nuevo_lead">Nuevo Lead</option>
+                <option value="en_seguimiento">En Seguimiento</option>
+                <option value="activo">Activo</option>
+                <option value="cerrado">Cerrado</option>
+                <option value="perdido">Perdido</option>
+              </select>
+            </div>
+            <div className="form-group mb-2">
+              <label className="form-label" style={{ fontSize: '0.85rem' }}>Origen</label>
+              <select className="form-select form-select-sm" value={source} onChange={e => setSource(e.target.value)}>
+                <option value="instagram">Instagram</option>
+                <option value="facebook">Facebook</option>
+                <option value="zonaprop">Zonaprop</option>
+                <option value="cartel">Cartel</option>
+                <option value="referido">Referido</option>
+                <option value="oficina">Oficina</option>
+                <option value="otro">Otro</option>
+              </select>
+            </div>
+            {source === 'otro' && (
+              <div className="form-group">
+                <input
+                  type="text"
+                  className="form-control form-control-sm"
+                  placeholder="Detalle origen..."
+                  value={sourceDetail}
+                  onChange={e => setSourceDetail(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="contact-section">
             <h3 className="contact-section-title">Información de contacto</h3>
             <dl className="contact-info-list">
               <div className="contact-info-row"><dt>Teléfono</dt><dd>{contact.telefonoPrincipal ?? "—"}</dd></div>
@@ -319,13 +456,133 @@ const ContactoDetalle: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* Recordar Feedback */}
+          <div className="contact-section">
+            <div className="contact-reminder-row">
+              <div style={{ marginBottom: '0.5rem' }}>
+                <div className="contact-reminder-label">Recordar Feedback</div>
+                <div style={{ fontSize: '0.85rem', color: '#666' }}>Generar eventos recurrentes</div>
+              </div>
+              <div className="contact-reminder-toggle-container">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={feedbackEnabled}
+                  onClick={() => setFeedbackEnabled(!feedbackEnabled)}
+                  className="toggle-switch"
+                >
+                  <span className="toggle-thumb" />
+                </button>
+                <span className="toggle-label">{feedbackEnabled ? "Activado" : "Desactivado"}</span>
+              </div>
+            </div>
+
+            {feedbackEnabled && (
+              <div className="feedback-config" style={{ marginTop: '1rem', padding: '1rem', background: 'var(--bg-root)', borderRadius: '8px' }}>
+                <div className="form-group mb-2">
+                  <label className="form-label" style={{ fontSize: '0.85rem' }}>Frecuencia</label>
+                  <select
+                    className="form-select form-select-sm"
+                    value={isCustomFreq ? "custom" : feedbackFreq}
+                    onChange={(e) => {
+                      if (e.target.value === "custom") {
+                        setIsCustomFreq(true);
+                      } else {
+                        setIsCustomFreq(false);
+                        setFeedbackFreq(Number(e.target.value));
+                      }
+                    }}
+                  >
+                    <option value={7}>Cada 7 días</option>
+                    <option value={15}>Cada 15 días</option>
+                    <option value={30}>Cada 30 días</option>
+                    <option value="custom">Personalizado</option>
+                  </select>
+                  {isCustomFreq && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+                      <input
+                        type="number"
+                        className="form-control form-control-sm"
+                        value={feedbackFreq}
+                        onChange={(e) => setFeedbackFreq(Number(e.target.value))}
+                        style={{ width: '80px' }}
+                      />
+                      <span style={{ fontSize: '0.85rem' }}>días</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid-2 mb-2">
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: '0.85rem' }}>Repeticiones</label>
+                    <input
+                      type="number"
+                      className="form-control form-control-sm"
+                      value={feedbackOccurrences}
+                      onChange={(e) => setFeedbackOccurrences(Number(e.target.value))}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: '0.85rem' }}>Inicio</label>
+                    <input
+                      type="date"
+                      className="form-control form-control-sm"
+                      value={feedbackStartDate}
+                      onChange={(e) => setFeedbackStartDate(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ fontSize: '0.85rem' }}>Nota para el evento</label>
+                  <textarea
+                    className="form-control form-control-sm"
+                    rows={2}
+                    value={feedbackNote}
+                    onChange={(e) => setFeedbackNote(e.target.value)}
+                    placeholder="Ej: Seguimiento comprador..."
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Próximos Recordatorios */}
+          {futureEvents.length > 0 && (
+            <div className="contact-section">
+              <h3 className="contact-section-title">Próximos recordatorios</h3>
+              <div className="future-events-list">
+                {futureEvents.map(e => (
+                  <div key={e.id} className="future-event-item" style={{
+                    display: 'flex',
+                    gap: '0.75rem',
+                    padding: '0.75rem',
+                    borderBottom: '1px solid var(--border-color)',
+                    alignItems: 'center'
+                  }}>
+                    <div style={{ fontSize: '1.2rem' }}>
+                      {e.type === 'CUMPLE' ? '🎂' : e.type === 'MUDANZA' ? '📦' : '📅'}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 500 }}>{e.title}</div>
+                      <div style={{ fontSize: '0.8rem', color: '#666' }}>{formatDate(e.date)}</div>
+                    </div>
+                    <Link to={`/agenda`} className="btn btn-xs btn-ghost">Ver</Link>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="card contact-detail-main">
           <div className="contact-tabs">
             <button type="button" className={"contact-tab" + (activeTab === "actividades" ? " contact-tab-active" : "")} onClick={() => setActiveTab("actividades")}>Actividades</button>
             <button type="button" className={"contact-tab" + (activeTab === "info" ? " contact-tab-active" : "")} onClick={() => setActiveTab("info")}>Información personal</button>
+            <button type="button" className={"contact-tab" + (activeTab === "historial" ? " contact-tab-active" : "")} onClick={() => setActiveTab("historial")}>Historial</button>
             <button type="button" className={"contact-tab" + (activeTab === "archivos" ? " contact-tab-active" : "")} onClick={() => setActiveTab("archivos")}>Archivos</button>
+            <button type="button" className={"contact-tab" + (activeTab === "propiedades" ? " contact-tab-active" : "")} onClick={() => setActiveTab("propiedades")}>Propiedades</button>
           </div>
 
           <div className="contact-tab-panel">
@@ -352,6 +609,32 @@ const ContactoDetalle: React.FC = () => {
                 </div>
               </div>
             )}
+            {activeTab === "historial" && (
+              <div className="contact-activities">
+                {historyEvents.length === 0 ? <p className="contact-placeholder">No hay historial de eventos.</p> : (
+                  historyEvents.map((ev: any) => (
+                    <div key={ev.id} className="contact-activity-item">
+                      <div className="contact-activity-icon">
+                        {ev.type === 'cumpleanios' ? '🎂' : ev.type === 'mudanza' ? '📦' : ev.type === 'feedback' ? '📢' : '📅'}
+                      </div>
+                      <div className="contact-activity-content">
+                        <div className="contact-activity-header">
+                          <span className="contact-activity-title">{ev.title}</span>
+                          <span className="contact-activity-date">{formatDate(ev.date)} {ev.startTime}</span>
+                        </div>
+                        <div className="contact-activity-description">
+                          {ev.description || ev.detail || ev.summary}
+                        </div>
+                        <div className="contact-activity-meta">
+                          <span className="chip chip-soft chip-activity">{ev.type}</span>
+                          {ev.agent && <span>👤 {ev.agent}</span>}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
             {activeTab === "archivos" && (
               <div className="contact-files">
                 {files.length === 0 ? <p className="contact-placeholder">Todavía no hay archivos vinculados.</p> : (
@@ -359,6 +642,29 @@ const ContactoDetalle: React.FC = () => {
                     <thead><tr><th>Nombre</th><th>Tipo</th><th>Fecha</th></tr></thead>
                     <tbody>{files.map((f) => <tr key={f.id}><td>{f.nombre}</td><td>{f.tipo}</td><td>{formatDate(f.fechaSubida)}</td></tr>)}</tbody>
                   </table>
+                )}
+              </div>
+            )}
+            {activeTab === "propiedades" && (
+              <div className="contact-properties">
+                {properties.length === 0 ? (
+                  <p className="contact-placeholder">No hay propiedades asociadas a este contacto.</p>
+                ) : (
+                  <div className="properties-list" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {properties.map(p => (
+                      <div key={p.id} className="card" style={{ padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '1.1rem' }}>{p.titulo}</h4>
+                          <div style={{ color: '#666', fontSize: '0.9rem' }}>
+                            {p.direccion} • {p.tipoOperacion} • {p.estado}
+                          </div>
+                        </div>
+                        <Link to={`/propiedades/${p.id}`} className="btn btn-sm btn-outline-primary">
+                          Ver Propiedad
+                        </Link>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             )}

@@ -6,20 +6,21 @@ import "./Clientes.css";
 type UserRole = "AGENTE" | "RECEPCIONISTA" | "OWNER" | "ADMIN" | "MARTILLERO";
 
 type TipoContacto =
-  | "Amigo"
-  | "Familia"
-  | "Cliente comprador"
-  | "Cliente vendedor"
-  | "Posible cliente"
-  | "Proveedor"
+  | "posible_comprador"
+  | "posible_vendedor"
+  | "cliente_activo"
+  | "propietario"
+  | "inquilino"
+  | "referido"
+  | "amigo_familia"
   | "Otro";
 
 type EtapaContacto =
-  | "Nuevo"
-  | "En seguimiento"
-  | "Cliente activo"
-  | "Cerrado"
-  | "Perdido";
+  | "nuevo_lead"
+  | "en_seguimiento"
+  | "activo"
+  | "cerrado"
+  | "perdido";
 
 interface Contact {
   id: string;
@@ -29,8 +30,11 @@ interface Contact {
   apellido: string;
   telefonoPrincipal?: string;
   emailPrincipal?: string;
-  tipoContacto: TipoContacto;
-  etapa: EtapaContacto;
+  tipoContacto: string;
+  etapa: string;
+  status?: string;
+  source?: string;
+  contactType?: string;
   origen?: string;
   fechaCumpleanios?: string; // ISO string
   recordarCumpleanios: boolean;
@@ -38,24 +42,35 @@ interface Contact {
   recordarMudanza: boolean;
 }
 
-const TIPO_CONTACTO_OPTIONS: (TipoContacto | "Todos")[] = [
-  "Todos",
-  "Amigo",
-  "Familia",
-  "Cliente comprador",
-  "Cliente vendedor",
-  "Posible cliente",
-  "Proveedor",
-  "Otro",
+const TIPO_CONTACTO_OPTIONS = [
+  { value: "Todos", label: "Todos" },
+  { value: "posible_comprador", label: "Posible Comprador" },
+  { value: "posible_vendedor", label: "Posible Vendedor" },
+  { value: "cliente_activo", label: "Cliente Activo" },
+  { value: "propietario", label: "Propietario" },
+  { value: "inquilino", label: "Inquilino" },
+  { value: "referido", label: "Referido" },
+  { value: "amigo_familia", label: "Amigo / Familia" },
 ];
 
-const ETAPA_OPTIONS: (EtapaContacto | "Todas")[] = [
-  "Todas",
-  "Nuevo",
-  "En seguimiento",
-  "Cliente activo",
-  "Cerrado",
-  "Perdido",
+const STATUS_OPTIONS = [
+  { value: "Todas", label: "Todas" },
+  { value: "nuevo_lead", label: "Nuevo Lead" },
+  { value: "en_seguimiento", label: "En Seguimiento" },
+  { value: "activo", label: "Activo" },
+  { value: "cerrado", label: "Cerrado" },
+  { value: "perdido", label: "Perdido" },
+];
+
+const SOURCE_OPTIONS = [
+  { value: "Todos", label: "Todos" },
+  { value: "instagram", label: "Instagram" },
+  { value: "facebook", label: "Facebook" },
+  { value: "zonaprop", label: "Zonaprop" },
+  { value: "cartel", label: "Cartel" },
+  { value: "referido", label: "Referido" },
+  { value: "oficina", label: "Oficina" },
+  { value: "otro", label: "Otro" },
 ];
 
 const Clientes: React.FC = () => {
@@ -65,9 +80,9 @@ const Clientes: React.FC = () => {
 
   // Filtros
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterTipo, setFilterTipo] = useState<TipoContacto | "Todos">("Todos");
-  const [filterEtapa, setFilterEtapa] =
-    useState<EtapaContacto | "Todas">("Todas");
+  const [filterTipo, setFilterTipo] = useState("Todos");
+  const [filterStatus, setFilterStatus] = useState("Todas");
+  const [filterSource, setFilterSource] = useState("Todos");
 
   // Modales
   const [showNewContactModal, setShowNewContactModal] = useState(false);
@@ -99,10 +114,17 @@ const Clientes: React.FC = () => {
 
   const filteredContacts = useMemo(() => {
     return contacts.filter((c) => {
-      if (filterTipo !== "Todos" && c.tipoContacto !== filterTipo) {
+      const cType = c.contactType || c.tipoContacto;
+      const cStatus = c.status || c.etapa;
+      const cSource = c.source || c.origen;
+
+      if (filterTipo !== "Todos" && cType !== filterTipo) {
         return false;
       }
-      if (filterEtapa !== "Todas" && c.etapa !== filterEtapa) {
+      if (filterStatus !== "Todas" && cStatus !== filterStatus) {
+        return false;
+      }
+      if (filterSource !== "Todos" && cSource !== filterSource) {
         return false;
       }
 
@@ -117,7 +139,7 @@ const Clientes: React.FC = () => {
         (c.emailPrincipal ?? "").toLowerCase().includes(term)
       );
     });
-  }, [contacts, filterTipo, filterEtapa, searchTerm]);
+  }, [contacts, filterTipo, filterStatus, filterSource, searchTerm]);
 
   const handleRowClick = (contactId: string) => {
     navigate(`/contactos/${contactId}`);
@@ -197,30 +219,41 @@ const Clientes: React.FC = () => {
             <select
               className="filter-select"
               value={filterTipo}
-              onChange={(e) =>
-                setFilterTipo(e.target.value as TipoContacto | "Todos")
-              }
+              onChange={(e) => setFilterTipo(e.target.value)}
             >
-              {TIPO_CONTACTO_OPTIONS.map((tipo) => (
-                <option key={tipo} value={tipo}>
-                  {tipo}
+              {TIPO_CONTACTO_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
                 </option>
               ))}
             </select>
           </div>
 
           <div className="filter-group">
-            <label className="filter-label">Etapa</label>
+            <label className="filter-label">Estado</label>
             <select
               className="filter-select"
-              value={filterEtapa}
-              onChange={(e) =>
-                setFilterEtapa(e.target.value as EtapaContacto | "Todas")
-              }
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
             >
-              {ETAPA_OPTIONS.map((etapa) => (
-                <option key={etapa} value={etapa}>
-                  {etapa}
+              {STATUS_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="filter-group">
+            <label className="filter-label">Origen</label>
+            <select
+              className="filter-select"
+              value={filterSource}
+              onChange={(e) => setFilterSource(e.target.value)}
+            >
+              {SOURCE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
                 </option>
               ))}
             </select>
@@ -250,7 +283,8 @@ const Clientes: React.FC = () => {
                     <th>Teléfono</th>
                     <th>Email</th>
                     <th>Tipo</th>
-                    <th>Etapa</th>
+                    <th>Estado</th>
+                    <th>Origen</th>
                     {canSeeAgentColumn && <th>Agente</th>}
                     <th>Recordatorios</th>
                   </tr>
@@ -283,14 +317,17 @@ const Clientes: React.FC = () => {
                       <td>{contact.emailPrincipal ?? "-"}</td>
                       <td>
                         <span className="chip chip-soft text-xs">
-                          {contact.tipoContacto}
+                          {contact.contactType || contact.tipoContacto}
                         </span>
                       </td>
                       <td>
-                        <span
-                          className={`chip chip-etapa-${toSlug(contact.etapa)} text-xs`}
-                        >
-                          {contact.etapa}
+                        <span className={`chip chip-etapa-${toSlug(contact.status || contact.etapa)} text-xs`}>
+                          {contact.status || contact.etapa}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="text-xs text-muted">
+                          {contact.source || contact.origen || "-"}
                         </span>
                       </td>
                       {canSeeAgentColumn && (
@@ -347,9 +384,9 @@ const NewContactModal: React.FC<NewContactModalProps> = ({ onClose, onSave }) =>
     apellido: "",
     telefonoPrincipal: "",
     emailPrincipal: "",
-    tipoContacto: "Posible cliente",
-    etapa: "Nuevo",
-    origen: "",
+    contactType: "posible_comprador",
+    status: "nuevo_lead",
+    source: "oficina",
     recordarCumpleanios: false,
     recordarMudanza: false,
   });
@@ -369,9 +406,12 @@ const NewContactModal: React.FC<NewContactModalProps> = ({ onClose, onSave }) =>
       apellido: formData.apellido!,
       telefonoPrincipal: formData.telefonoPrincipal,
       emailPrincipal: formData.emailPrincipal,
-      tipoContacto: formData.tipoContacto as TipoContacto,
-      etapa: formData.etapa as EtapaContacto,
-      origen: formData.origen,
+      contactType: formData.contactType,
+      tipoContacto: formData.contactType as string,
+      status: formData.status,
+      etapa: formData.status as string,
+      source: formData.source,
+      origen: formData.source,
       recordarCumpleanios: formData.recordarCumpleanios!,
       fechaCumpleanios: formData.fechaCumpleanios,
       recordarMudanza: formData.recordarMudanza!,
@@ -437,23 +477,23 @@ const NewContactModal: React.FC<NewContactModalProps> = ({ onClose, onSave }) =>
               <label className="form-label">Tipo</label>
               <select
                 className="select"
-                value={formData.tipoContacto}
-                onChange={(e) => setFormData({ ...formData, tipoContacto: e.target.value as TipoContacto })}
+                value={formData.contactType}
+                onChange={(e) => setFormData({ ...formData, contactType: e.target.value })}
               >
-                {TIPO_CONTACTO_OPTIONS.filter(o => o !== "Todos").map((opt) => (
-                  <option key={opt} value={opt}>{opt}</option>
+                {TIPO_CONTACTO_OPTIONS.filter(o => o.value !== "Todos").map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
             </div>
             <div className="form-col">
-              <label className="form-label">Etapa</label>
+              <label className="form-label">Estado</label>
               <select
                 className="select"
-                value={formData.etapa}
-                onChange={(e) => setFormData({ ...formData, etapa: e.target.value as EtapaContacto })}
+                value={formData.status}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
               >
-                {ETAPA_OPTIONS.filter(o => o !== "Todas").map((opt) => (
-                  <option key={opt} value={opt}>{opt}</option>
+                {STATUS_OPTIONS.filter(o => o.value !== "Todas").map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
             </div>
@@ -461,13 +501,15 @@ const NewContactModal: React.FC<NewContactModalProps> = ({ onClose, onSave }) =>
 
           <div className="form-group">
             <label className="form-label">Origen</label>
-            <input
-              type="text"
-              className="input"
-              placeholder="Ej: Portal, Referido, Redes..."
-              value={formData.origen}
-              onChange={(e) => setFormData({ ...formData, origen: e.target.value })}
-            />
+            <select
+              className="select"
+              value={formData.source}
+              onChange={(e) => setFormData({ ...formData, source: e.target.value })}
+            >
+              {SOURCE_OPTIONS.filter(o => o.value !== "Todos").map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
           </div>
 
           <div className="form-row" style={{ marginTop: '1.5rem' }}>

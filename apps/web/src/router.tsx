@@ -11,6 +11,7 @@ import App from "./App";
 // Páginas
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
+import Alquileres from "./pages/Alquileres";
 import Propiedades from "./pages/Propiedades";
 import Carteles from "./pages/Carteles";
 import PropiedadesDetalle from "./pages/PropiedadesDetalle";
@@ -46,6 +47,7 @@ const AppRouter: React.FC = () => {
           {/* Rutas internas protegidas */}
           <Route element={<ProtectedRoute />}>
             <Route path="dashboard" element={<Dashboard />} />
+            <Route path="alquileres" element={<Alquileres />} />
 
             {/* Módulos Protegidos */}
             <Route element={<ModuleRoute module="properties" />}>

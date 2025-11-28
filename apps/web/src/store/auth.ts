@@ -2,7 +2,7 @@ import { create } from "zustand";
 
 import { Role } from "../config/roles";
 
-type User = { id: string; name: string; role: Role };
+type User = { id: string; name: string; role: Role; email?: string };
 
 type AuthState = {
   user: User | null;
@@ -11,9 +11,27 @@ type AuthState = {
   logout: () => void;
 };
 
+const storedToken = localStorage.getItem('token');
+let initialUser: User | null = null;
+
+if (storedToken) {
+  try {
+    const payload = JSON.parse(atob(storedToken.split('.')[1]));
+    initialUser = {
+      id: payload.id,
+      name: payload.name,
+      role: payload.role as Role,
+      email: payload.email
+    };
+  } catch (e) {
+    console.error("Failed to decode token", e);
+    localStorage.removeItem('token');
+  }
+}
+
 export const useAuth = create<AuthState>((set) => ({
-  user: null,
-  token: localStorage.getItem('token'),
+  user: initialUser,
+  token: storedToken,
   async login(email, pass) {
     try {
       const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001/api";

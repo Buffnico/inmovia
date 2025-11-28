@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import "./Agenda.css";
 
 type CalendarStatus = "checking" | "connected" | "disconnected" | "error";
@@ -11,6 +12,15 @@ interface AgendaEvent {
   endTime: string;
   type?: string;
   agent?: string;
+  contactId?: string;
+  participants?: { userId: string; status: 'invited' | 'accepted' | 'declined'; comment?: string }[];
+  assignedUserId?: string;
+}
+
+interface UserSummary {
+  id: string;
+  name: string;
+  role: string;
 }
 
 // Base de la API (dev: localhost:3001)
@@ -27,14 +37,26 @@ function apiUrl(endpoint: string) {
 }
 
 const FALLBACK_EVENT_TYPES = [
-  "Visita con comprador",
-  "Visita de captación",
-  "Llamada de seguimiento",
-  "Reunión interna",
-  "Firma de reserva / boleto",
-  "Post-venta / aniversario",
-  "Otro",
+  "visita_propiedad",
+  "llamada",
+  "reunion",
+  "firma",
+  "cumpleanios",
+  "mudanza",
+  "feedback",
+  "otro",
 ];
+
+const EVENT_TYPE_LABELS: Record<string, string> = {
+  "visita_propiedad": "Visita Propiedad",
+  "llamada": "Llamada",
+  "reunion": "Reunión",
+  "firma": "Firma",
+  "cumpleanios": "Cumpleaños",
+  "mudanza": "Mudanza",
+  "feedback": "Feedback",
+  "otro": "Otro"
+};
 
 interface CalendarCell {
   key: string;
@@ -60,17 +82,41 @@ const Agenda: React.FC = () => {
 
   const [form, setForm] = useState({
     title: "",
-    type: "Visita con comprador",
+    type: "visita_propiedad",
     date: "",
     startTime: "10:00",
     endTime: "11:00",
     detail: "",
     agent: "",
+    participants: [] as string[], // IDs of selected users
   });
+
+  const [availableUsers, setAvailableUsers] = useState<UserSummary[]>([]);
+
+  // Load available users for sharing
+  useEffect(() => {
+    const fetchUsers = async () => {
+      const token = localStorage.getItem('token');
+      try {
+        const res = await fetch(apiUrl("/api/users"), {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          // Filter out current user
+          setAvailableUsers(data.data.filter((u: UserSummary) => u.id !== user?.id));
+        }
+      } catch (e) {
+        console.error("Error loading users", e);
+      }
+    };
+    if (user) fetchUsers();
+  }, [user]);
 
   // 🗓️ Filtro de fecha y tipo
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>("todos");
+  const [selectedAgentFilter, setSelectedAgentFilter] = useState<string>("");
 
   // Mes mostrado en el mini calendario de la izquierda
   const [calendarMonth, setCalendarMonth] = useState<Date>(() => new Date());
@@ -123,6 +169,9 @@ const Agenda: React.FC = () => {
         endTime: ev.endTime || "",
         type: ev.type || "",
         agent: ev.agent || "",
+        contactId: ev.contactId,
+        participants: ev.participants || [],
+        assignedUserId: ev.assignedUserId
       }));
 
       setEvents(mapped);
@@ -166,6 +215,7 @@ const Agenda: React.FC = () => {
           endTime: form.endTime,
           detail: form.detail,
           agent: form.agent,
+          participants: form.participants
         }),
       });
 
@@ -178,6 +228,7 @@ const Agenda: React.FC = () => {
         title: "",
         detail: "",
         agent: "",
+        participants: []
       }));
 
       setEvents((prev) => [
@@ -190,6 +241,7 @@ const Agenda: React.FC = () => {
           endTime: form.endTime,
           type: form.type,
           agent: form.agent,
+          participants: form.participants.map(uid => ({ userId: uid, status: 'invited' as const }))
         },
       ]);
     } catch (err) {
@@ -197,6 +249,29 @@ const Agenda: React.FC = () => {
       setFeedback({ type: "error", msg: "No se pudo crear el evento. Intenta nuevamente." });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleRespondInvitation(eventId: string, status: 'accepted' | 'declined') {
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(apiUrl(`/api/agenda/${eventId}/responder-invitacion`), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status })
+      });
+
+      if (res.ok) {
+        // Refresh events
+        loadEvents();
+      } else {
+        alert("Error al responder invitación");
+      }
+    } catch (e) {
+      console.error(e);
     }
   }
 
@@ -311,12 +386,17 @@ const Agenda: React.FC = () => {
     const matchesDate =
       !selectedDate || ev.date === selectedDate;
 
-    return matchesType && matchesDate;
+    const matchesAgent =
+      !selectedAgentFilter ||
+      (ev.agent && ev.agent.toLowerCase().includes(selectedAgentFilter.toLowerCase()));
+
+    return matchesType && matchesDate && matchesAgent;
   });
 
   function clearFilters() {
     setSelectedDate(null);
     setSelectedTypeFilter("todos");
+    setSelectedAgentFilter("");
   }
 
   const selectedDateLabel = selectedDate
@@ -373,6 +453,20 @@ const Agenda: React.FC = () => {
               ))}
             </select>
           </div>
+
+          {['OWNER', 'ADMIN', 'RECEPCIONISTA'].includes(user?.role || '') && (
+            <div className="agenda-filter">
+              <label className="agenda-filter-label">Filtrar por Agente</label>
+              <input
+                type="text"
+                className="agenda-filter-input" // Reuse existing class or add style
+                style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)' }}
+                placeholder="Nombre del agente..."
+                value={selectedAgentFilter}
+                onChange={(e) => setSelectedAgentFilter(e.target.value)}
+              />
+            </div>
+          )}
 
           <div className="agenda-calendar-weekdays">
             {["L", "M", "M", "J", "V", "S", "D"].map((d, i) => (
@@ -513,11 +607,53 @@ const Agenda: React.FC = () => {
                             )}
                             {ev.type && (
                               <span className="agenda-event-pill">
-                                {ev.type}
+                                {EVENT_TYPE_LABELS[ev.type] || ev.type}
                               </span>
                             )}
                             {ev.agent && <span>👤 {ev.agent}</span>}
+                            {ev.contactId && (
+                              <Link to={`/contactos/${ev.contactId}`} style={{ marginLeft: 'auto', fontSize: '0.8rem', color: 'var(--primary-color)', textDecoration: 'none' }}>
+                                Ver contacto →
+                              </Link>
+                            )}
                           </div>
+                          {/* Participants Display */}
+                          {ev.participants && ev.participants.length > 0 && (
+                            <div style={{ marginTop: '4px', fontSize: '0.75rem', color: '#666' }}>
+                              <strong>Invitados:</strong>
+                              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '2px' }}>
+                                {ev.participants.map(p => {
+                                  const uName = availableUsers.find(u => u.id === p.userId)?.name || 'Usuario';
+                                  let statusColor = '#999';
+                                  if (p.status === 'accepted') statusColor = 'green';
+                                  if (p.status === 'declined') statusColor = 'red';
+
+                                  return (
+                                    <span key={p.userId} style={{ border: '1px solid #eee', padding: '2px 6px', borderRadius: '4px', backgroundColor: '#f9f9f9' }}>
+                                      {uName} <span style={{ color: statusColor }}>({p.status === 'invited' ? 'Invitado' : (p.status === 'accepted' ? 'Aceptado' : 'Rechazado')})</span>
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                          {/* Invitation Response Actions */}
+                          {ev.participants?.some(p => p.userId === user?.id && p.status === 'invited') && (
+                            <div style={{ marginTop: '8px', display: 'flex', gap: '8px' }}>
+                              <button
+                                onClick={() => handleRespondInvitation(ev.id, 'accepted')}
+                                style={{ fontSize: '0.75rem', padding: '4px 8px', backgroundColor: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0', borderRadius: '4px', cursor: 'pointer' }}
+                              >
+                                ✓ Aceptar
+                              </button>
+                              <button
+                                onClick={() => handleRespondInvitation(ev.id, 'declined')}
+                                style={{ fontSize: '0.75rem', padding: '4px 8px', backgroundColor: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', borderRadius: '4px', cursor: 'pointer' }}
+                              >
+                                ✕ Rechazar
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </li>
                     ))}
@@ -578,7 +714,7 @@ const Agenda: React.FC = () => {
                   >
                     {FALLBACK_EVENT_TYPES.map((t) => (
                       <option key={t} value={t}>
-                        {t}
+                        {EVENT_TYPE_LABELS[t] || t}
                       </option>
                     ))}
                   </select>
@@ -656,6 +792,32 @@ const Agenda: React.FC = () => {
                     value={form.detail}
                     onChange={handleChange}
                   />
+                </div>
+
+                <div className="agenda-form-row">
+                  <label className="agenda-label">Compartir con</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '150px', overflowY: 'auto', border: '1px solid #e2e8f0', padding: '8px', borderRadius: '6px' }}>
+                    {availableUsers.length === 0 ? (
+                      <span style={{ fontSize: '0.85rem', color: '#999' }}>No hay otros usuarios disponibles.</span>
+                    ) : (
+                      availableUsers.map(u => (
+                        <label key={u.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={form.participants.includes(u.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setForm(prev => ({ ...prev, participants: [...prev.participants, u.id] }));
+                              } else {
+                                setForm(prev => ({ ...prev, participants: prev.participants.filter(id => id !== u.id) }));
+                              }
+                            }}
+                          />
+                          {u.name} <span style={{ fontSize: '0.75rem', color: '#666' }}>({u.role})</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
                 </div>
 
                 <div className="agenda-form-footer">

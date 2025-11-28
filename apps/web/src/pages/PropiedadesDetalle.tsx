@@ -139,21 +139,31 @@ const PropiedadesDetalle: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Propietario */}
+                        {/* Propietario / Cliente Asociado */}
                         <div className="card">
                             <div className="card-body">
-                                <h4 className="card-title mb-3">Propietario</h4>
+                                <h4 className="card-title mb-3">Cliente Asociado</h4>
                                 {propiedad.propietario ? (
                                     <div className="owner-info">
                                         <div style={{ fontWeight: 'bold' }}>{propiedad.propietario.nombre || 'Sin nombre'}</div>
                                         <div className="text-muted" style={{ fontSize: '0.9rem' }}>{propiedad.propietario.email}</div>
                                         <div className="text-muted" style={{ fontSize: '0.9rem' }}>{propiedad.propietario.celular}</div>
                                         <div className="mt-3">
-                                            <button className="btn btn-sm btn-outline-primary w-100">Ver Contacto</button>
+                                            {/* Link to contact detail if we have an ID (assuming propietario object might have it or we need to fetch it) 
+                                                For now, assuming propietario object structure matches what backend returns or we might need to adjust.
+                                                If backend returns 'cliente' object with ID, use that.
+                                            */}
+                                            {/* TODO: Ensure backend returns contactId in propietario object or separate field */}
+                                            <Link to={`/contactos/${(propiedad.propietario as any).id || ''}`} className="btn btn-sm btn-outline-primary w-100">
+                                                Ver Contacto Completo
+                                            </Link>
                                         </div>
                                     </div>
                                 ) : (
-                                    <p className="text-muted">No hay datos del propietario.</p>
+                                    <div className="text-center">
+                                        <p className="text-muted mb-3">No hay cliente asociado.</p>
+                                        <button className="btn btn-sm btn-outline-primary w-100">Asociar Cliente</button>
+                                    </div>
                                 )}
                             </div>
                         </div>

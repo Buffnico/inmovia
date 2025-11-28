@@ -1,0 +1,34 @@
+[
+    {
+        "id": "p1",
+        "titulo": "Depto 3 amb premium",
+        "direccion": "Lomas de Zamora",
+        "estado": "Activa",
+        "agente": "Nicolás",
+        "assignedAgentId": "agente1",
+        "cliente": {
+            "nombre": "María Pérez",
+            "dni": "12345678",
+            "email": "maria@example.com"
+        },
+        "contactId": "c1",
+        "recordarFeedback": false,
+        "frecuenciaFeedbackDias": 7,
+        "feedbackCalendarEventId": null
+    },
+    {
+        "id": "p2",
+        "titulo": "Casa 4 amb con jardín",
+        "direccion": "Banfield",
+        "estado": "Reservada",
+        "agente": "Lucía",
+        "assignedAgentId": "agente2",
+        "cliente": {
+            "nombre": "Carlos Gómez"
+        },
+        "contactId": "c2",
+        "recordarFeedback": false,
+        "frecuenciaFeedbackDias": 15,
+        "feedbackCalendarEventId": null
+    }
+]

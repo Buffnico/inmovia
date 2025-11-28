@@ -3,44 +3,17 @@ const router = express.Router();
 const multer = require('multer');
 const xlsx = require('xlsx');
 const { handlePropertyFeedback } = require('../services/propertyFeedbackService');
+const PropertyModel = require('../models/propertyModel');
+const ContactModel = require('../models/contactModel');
 
 // Configure Multer (Memory Storage)
 const upload = multer({ storage: multer.memoryStorage() });
 
 const { canReadProperty, canEditProperty, ROLES } = require('../utils/permissions');
 
-// --- MOCK DATABASE (In-Memory) ---
-let properties = [
-    {
-        id: "p1",
-        titulo: "Depto 3 amb premium",
-        direccion: "Lomas de Zamora",
-        estado: "Activa",
-        agente: "Nicolás",
-        assignedAgentId: "agente1", // Mock ID for testing
-        cliente: { nombre: "María Pérez", dni: "12345678", email: "maria@example.com" },
-        contactId: "c1",
-        recordarFeedback: false,
-        frecuenciaFeedbackDias: 7,
-        feedbackCalendarEventId: null
-    },
-    {
-        id: "p2",
-        titulo: "Casa 4 amb con jardín",
-        direccion: "Banfield",
-        estado: "Reservada",
-        agente: "Lucía",
-        assignedAgentId: "agente2", // Mock ID for testing
-        cliente: { nombre: "Carlos Gómez" },
-        contactId: "c2",
-        recordarFeedback: false,
-        frecuenciaFeedbackDias: 15,
-        feedbackCalendarEventId: null
-    },
-];
-
 // GET /api/properties - List all properties
 router.get('/', (req, res) => {
+    const properties = PropertyModel.findAll();
     // Filter properties based on user role
     const visibleProperties = properties.filter(p => canReadProperty(req.user, p));
 
@@ -52,7 +25,7 @@ router.get('/', (req, res) => {
 
 // GET /api/properties/:id - Get property by ID
 router.get('/:id', (req, res) => {
-    const prop = properties.find(p => p.id === req.params.id);
+    const prop = PropertyModel.findById(req.params.id);
     if (!prop) return res.status(404).json({ ok: false, message: "Propiedad no encontrada" });
 
     if (!canReadProperty(req.user, prop)) {
@@ -77,7 +50,53 @@ router.post('/', (req, res) => {
         newProp.assignedAgentId = req.user.id; // Default to self if not specified
     }
 
-    properties.push(newProp);
+    // --- Contact Linking Logic ---
+    // 1. Check if contactId is provided
+    if (newProp.contactId) {
+        const existing = ContactModel.findById(newProp.contactId);
+        if (!existing) {
+            // If invalid ID, maybe clear it or warn? For now, we'll proceed but it might be inconsistent.
+            // Or we could try to find/create based on client data if ID is bad.
+            console.warn(`Provided contactId ${newProp.contactId} not found.`);
+            newProp.contactId = null;
+        }
+    }
+
+    // 2. If no contactId, try to find by email/phone from 'cliente' object
+    if (!newProp.contactId && newProp.cliente) {
+        const { email, celular, telefono, nombre, apellido } = newProp.cliente;
+
+        let foundContact = null;
+        if (email) foundContact = ContactModel.findByEmail(email);
+        if (!foundContact && (celular || telefono)) foundContact = ContactModel.findByPhone(celular || telefono);
+
+        if (foundContact) {
+            newProp.contactId = foundContact.id;
+            console.log(`Linked to existing contact: ${foundContact.id}`);
+        } else {
+            // 3. If not found, create new contact
+            // We need basic info. If 'cliente' has name/email/phone, we can create it.
+            if (nombre || email || (celular || telefono)) {
+                const newContact = {
+                    id: `c${Date.now()}`,
+                    nombre: nombre || 'Sin Nombre',
+                    apellido: apellido || '',
+                    emailPrincipal: email || '',
+                    telefonoPrincipal: celular || telefono || '',
+                    tipoContacto: 'Cliente vendedor', // Default role for property owner?
+                    etapa: 'Nuevo',
+                    ownerId: req.user.id, // Assign to current user
+                    agentId: req.user.id,
+                    origen: 'Creación de Propiedad'
+                };
+                ContactModel.create(newContact);
+                newProp.contactId = newContact.id;
+                console.log(`Created new contact: ${newContact.id}`);
+            }
+        }
+    }
+
+    PropertyModel.create(newProp);
     res.json({ ok: true, message: 'Propiedad creada', data: newProp });
 });
 
@@ -112,6 +131,8 @@ router.post('/importar/remax-excel', upload.single('file'), (req, res) => {
             skipped: 0,
             errors: 0
         };
+
+        const properties = PropertyModel.findAll();
 
         rawData.forEach(row => {
             try {
@@ -195,15 +216,15 @@ router.post('/importar/remax-excel', upload.single('file'), (req, res) => {
                 };
 
                 // Check if exists
-                const existingIndex = properties.findIndex(p => p.mlsid === mlsId);
+                const existingProp = PropertyModel.findById(mlsId);
 
-                if (existingIndex >= 0) {
+                if (existingProp) {
                     // Update
-                    properties[existingIndex] = { ...properties[existingIndex], ...mappedProp };
+                    PropertyModel.update(mlsId, mappedProp);
                     stats.updated++;
                 } else {
                     // Create
-                    properties.push(mappedProp);
+                    PropertyModel.create(mappedProp);
                     stats.created++;
                 }
 
@@ -227,16 +248,14 @@ router.post('/importar/remax-excel', upload.single('file'), (req, res) => {
 
 // PUT /api/properties/:id - Update property
 router.put('/:id', async (req, res) => {
-    const index = properties.findIndex(p => p.id === req.params.id);
-    if (index === -1) return res.status(404).json({ ok: false, message: "Propiedad no encontrada" });
-
-    const oldProp = { ...properties[index] };
+    const oldProp = PropertyModel.findById(req.params.id);
+    if (!oldProp) return res.status(404).json({ ok: false, message: "Propiedad no encontrada" });
 
     if (!canEditProperty(req.user, oldProp)) {
         return res.status(403).json({ ok: false, message: "No tienes permiso para editar esta propiedad" });
     }
 
-    const updatedProp = { ...oldProp, ...req.body };
+    let updatedProp = { ...oldProp, ...req.body };
 
     // Prevent agents from changing assignment?
     if (req.user.role === ROLES.AGENTE) {
@@ -252,21 +271,21 @@ router.put('/:id', async (req, res) => {
     }
 
     // 3. Guardar
-    properties[index] = updatedProp;
+    updatedProp = PropertyModel.update(req.params.id, updatedProp);
 
     res.json({ ok: true, message: 'Propiedad actualizada', data: updatedProp });
 });
 
 // DELETE /api/properties/:id - Delete property
 router.delete('/:id', (req, res) => {
-    const prop = properties.find(p => p.id === req.params.id);
+    const prop = PropertyModel.findById(req.params.id);
     if (!prop) return res.status(404).json({ ok: false, message: "Propiedad no encontrada" });
 
     if (!canEditProperty(req.user, prop)) {
         return res.status(403).json({ ok: false, message: "No tienes permiso para eliminar esta propiedad" });
     }
 
-    properties = properties.filter(p => p.id !== req.params.id);
+    PropertyModel.delete(req.params.id);
     res.json({ ok: true, message: 'Propiedad eliminada' });
 });
 

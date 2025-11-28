@@ -1,8 +1,10 @@
-// apps/web/src/components/IvoTFab.tsx
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, Suspense, Component, ReactNode, lazy } from "react";
 import { Link } from "react-router-dom";
-import ivoLogo from "../assets/ivo-t.png";
+import ivoLogo from "../assets/ivot-logo.png";
 import "../pages/IvoT.css";
+
+// Lazy load the 3D component to isolate Three.js dependencies
+const IvoT3D = lazy(() => import("./IvoT3D"));
 
 type Msg = {
   id: string;
@@ -25,6 +27,33 @@ const INITIAL_MSGS: Msg[] = [
     time: "09:01",
   },
 ];
+
+// Error Boundary to catch 3D loading errors
+class ErrorBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { hasError: boolean; error: Error | null }> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error("IvoT 3D Error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ width: '100%', height: '100%', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'red', fontSize: '8px', textAlign: 'center', overflow: 'auto', padding: '4px' }}>
+          {this.state.error?.message || "Unknown Error"}
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export default function IvoTFab() {
   const [open, setOpen] = useState(false);
@@ -60,11 +89,42 @@ export default function IvoTFab() {
     setDraft("");
   }
 
+  const FallbackImage = (
+    <img
+      src={ivoLogo}
+      alt="Ivo-t"
+      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+    />
+  );
+
   return (
-    <div className="ivo-fab-root">
-      {/* Panel de chat, como en la captura pero en azul Inmovia */}
+    <div
+      style={{
+        position: "fixed",
+        bottom: "24px",
+        right: "24px",
+        zIndex: 9999,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "flex-end",
+        gap: "16px",
+        pointerEvents: "none", // Allow clicks to pass through the empty area
+      }}
+    >
+      {/* Panel de chat */}
       {open && (
-        <div className="ivo-chat-panel">
+        <div
+          className="ivo-fab-root"
+          style={{
+            position: "relative", // Override CSS fixed
+            bottom: "auto",
+            right: "auto",
+            width: "320px",
+            height: "450px",
+            pointerEvents: "auto", // Re-enable clicks
+            marginBottom: "8px",
+          }}
+        >
           <header className="ivo-chat-header">
             <div className="ivo-chat-header-left">
               <div className="ivo-chat-avatar">
@@ -125,14 +185,33 @@ export default function IvoTFab() {
         </div>
       )}
 
-      {/* Botón flotante con el icono de Ivo-t */}
+      {/* Botón flotante con el icono de Ivo-t (3D Lazy Loaded) */}
       <button
         type="button"
         className="ivo-fab-button-circle"
         onClick={() => setOpen((v) => !v)}
         aria-label="Abrir chat de Ivo-t"
+        style={{
+          width: "64px",
+          height: "64px",
+          borderRadius: "50%",
+          border: "none",
+          padding: 0,
+          overflow: "hidden",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+          background: "white",
+          cursor: "pointer",
+          pointerEvents: "auto", // Re-enable clicks
+        }}
       >
-        <img src={ivoLogo} alt="Ivo-t" />
+        <ErrorBoundary fallback={FallbackImage}>
+          <Suspense fallback={FallbackImage}>
+            <IvoT3D open={open} />
+          </Suspense>
+        </ErrorBoundary>
       </button>
     </div>
   );

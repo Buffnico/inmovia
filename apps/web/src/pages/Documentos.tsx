@@ -2,6 +2,13 @@ import React, { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import ScannerModal from "../scanner/components/ScannerModal";
 import ScannerModalModern from "../scanner/components/ScannerModalModern";
+import OfficeModelFormModal from "../components/OfficeModelFormModal";
+import UseOfficeModelWizard from "../components/UseOfficeModelWizard";
+import DocumentPreviewModal from "../components/DocumentPreviewModal";
+import { useAuth } from "../store/auth";
+import { useNavigate } from "react-router-dom";
+
+const API_BASE_URL = (import.meta as any).env.VITE_API_BASE_URL || "http://localhost:3001/api";
 
 // --- Mocks & Types ---
 
@@ -27,7 +34,7 @@ const MOCK_DOCS: DocumentMock[] = [
   { id: "d5", name: "Borrador - Autorización Venta", type: "docx", category: "Borradores", date: "18 Nov, 14:20", size: "450 KB", status: "borrador" },
 ];
 
-const CATEGORIES = ["Todos", "Contratos", "Identidad", "Legal", "Planos", "Borradores"];
+const CATEGORIES = ["Todos", "Contratos", "Identidad", "Legal", "Planos", "Borradores", "Oficina modelos"];
 
 // --- Componente Principal ---
 
@@ -45,6 +52,57 @@ export default function Documentos() {
 
   // File input para “Cargar documento”
   const fileRef = useRef<HTMLInputElement | null>(null);
+
+  // --- Office Models State ---
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [officeModels, setOfficeModels] = useState<any[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
+
+  const [isModelFormOpen, setIsModelFormOpen] = useState(false);
+  const [modelToEdit, setModelToEdit] = useState<any>(null);
+
+  const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<any>(null);
+
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
+  // Fetch models when category changes
+  React.useEffect(() => {
+    if (activeCategory === "Oficina modelos") {
+      fetchModels();
+    }
+  }, [activeCategory]);
+
+  const fetchModels = async () => {
+    setLoadingModels(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/documents/office-models`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setOfficeModels(data.data);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingModels(false);
+    }
+  };
+
+  const canManageModels = user && ['OWNER', 'ADMIN', 'MARTILLERO', 'RECEPCIONISTA'].includes(user.role);
+
+  const handleDeleteModel = async (id: string) => {
+    if (!confirm("¿Estás seguro de eliminar este modelo?")) return;
+    const token = localStorage.getItem('token');
+    await fetch(`${API_BASE_URL}/documents/office-models/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    fetchModels();
+  };
 
   // --- Funciones del Escáner ---
   function openScanEmpty() {
@@ -445,62 +503,115 @@ export default function Documentos() {
           {/* LISTA DE DOCUMENTOS */}
           <section className="docs-table-container">
             <div className="docs-header">
-              <h2 className="card-title">Archivos Recientes</h2>
-              <input
-                type="text"
-                className="search-input"
-                placeholder="Buscar documento o propiedad..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+              <h2 className="card-title">
+                {activeCategory === "Oficina modelos" ? "Modelos de Oficina" : "Archivos Recientes"}
+              </h2>
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                {activeCategory === "Oficina modelos" && canManageModels && (
+                  <button className="btn btn-primary btn-sm" onClick={() => { setModelToEdit(null); setIsModelFormOpen(true); }}>
+                    + Nuevo Modelo
+                  </button>
+                )}
+                <input
+                  type="text"
+                  className="search-input"
+                  placeholder="Buscar..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
             </div>
 
             <div className="table-scroll">
-              <table className="docs-table">
-                <thead>
-                  <tr>
-                    <th>Nombre</th>
-                    <th>Propiedad</th>
-                    <th>Fecha</th>
-                    <th>Estado</th>
-                    <th>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredDocs.map(doc => (
-                    <tr key={doc.id}>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                          <span style={{ fontSize: '1.2rem' }}>{getTypeIcon(doc.type)}</span>
-                          <div>
-                            <div style={{ fontWeight: 500 }}>{doc.name}</div>
-                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{doc.size} • {doc.category}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td>{doc.property || "-"}</td>
-                      <td>{doc.date}</td>
-                      <td>
-                        <span className={`status-badge ${getStatusColor(doc.status)}`}>
-                          {doc.status}
-                        </span>
-                      </td>
-                      <td>
-                        <button className="action-btn-mini" title="Ver">👁️</button>
-                        <button className="action-btn-mini" title="Descargar">⬇️</button>
-                        <button className="action-btn-mini" title="Más opciones">⋮</button>
-                      </td>
-                    </tr>
-                  ))}
-                  {filteredDocs.length === 0 && (
+              {activeCategory === "Oficina modelos" ? (
+                <table className="docs-table">
+                  <thead>
                     <tr>
-                      <td colSpan={5} style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
-                        No se encontraron documentos.
-                      </td>
+                      <th>Nombre</th>
+                      <th>Descripción</th>
+                      <th>Última Modificación</th>
+                      <th>Acciones</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {officeModels.map(model => (
+                      <tr key={model.id}>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <span style={{ fontSize: '1.2rem' }}>📝</span>
+                            <div style={{ fontWeight: 500 }}>{model.name}</div>
+                          </div>
+                        </td>
+                        <td>{model.description || "-"}</td>
+                        <td>{model.updatedAt ? new Date(model.updatedAt).toLocaleDateString() : new Date(model.createdAt).toLocaleDateString()}</td>
+                        <td>
+                          <button className="action-btn-mini" title="Vista Previa" onClick={() => { setSelectedModel(model); setIsPreviewOpen(true); }}>👁️</button>
+
+                          <button className="action-btn-mini" title="Usar Modelo" onClick={() => { setSelectedModel(model); setIsWizardOpen(true); }}>⚙️</button>
+
+                          <button className="action-btn-mini" title="Usar con Cláusulas (Ivo-t)" onClick={() => navigate(`/ivot?mode=documentModel&modelId=${model.id}`)}>🤖</button>
+
+                          {canManageModels && (
+                            <>
+                              <button className="action-btn-mini" title="Editar" onClick={() => { setModelToEdit(model); setIsModelFormOpen(true); }}>✏️</button>
+                              <button className="action-btn-mini" title="Eliminar" onClick={() => handleDeleteModel(model.id)}>🗑️</button>
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {officeModels.length === 0 && (
+                      <tr><td colSpan={4} style={{ textAlign: 'center', padding: '2rem' }}>No hay modelos disponibles.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              ) : (
+                <table className="docs-table">
+                  <thead>
+                    <tr>
+                      <th>Nombre</th>
+                      <th>Propiedad</th>
+                      <th>Fecha</th>
+                      <th>Estado</th>
+                      <th>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredDocs.map(doc => (
+                      <tr key={doc.id}>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <span style={{ fontSize: '1.2rem' }}>{getTypeIcon(doc.type)}</span>
+                            <div>
+                              <div style={{ fontWeight: 500 }}>{doc.name}</div>
+                              <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{doc.size} • {doc.category}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td>{doc.property || "-"}</td>
+                        <td>{doc.date}</td>
+                        <td>
+                          <span className={`status-badge ${getStatusColor(doc.status)}`}>
+                            {doc.status}
+                          </span>
+                        </td>
+                        <td>
+                          <button className="action-btn-mini" title="Ver">👁️</button>
+                          <button className="action-btn-mini" title="Descargar">⬇️</button>
+                          <button className="action-btn-mini" title="Más opciones">⋮</button>
+                        </td>
+                      </tr>
+                    ))}
+                    {filteredDocs.length === 0 && (
+                      <tr>
+                        <td colSpan={5} style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
+                          No se encontraron documentos.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              )}
             </div>
           </section>
 
@@ -521,6 +632,29 @@ export default function Documentos() {
           initialFiles={initialFiles}
         />
       )}
+
+      {/* Modals for Office Models */}
+      <OfficeModelFormModal
+        isOpen={isModelFormOpen}
+        onClose={() => setIsModelFormOpen(false)}
+        onSuccess={fetchModels}
+        modelToEdit={modelToEdit}
+      />
+
+      <UseOfficeModelWizard
+        isOpen={isWizardOpen}
+        onClose={() => setIsWizardOpen(false)}
+        model={selectedModel}
+      />
+
+      <DocumentPreviewModal
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        modelId={selectedModel?.id}
+        title={selectedModel?.name}
+        onUseModel={() => { setIsPreviewOpen(false); setIsWizardOpen(true); }}
+      />
+
     </div>
   );
 }

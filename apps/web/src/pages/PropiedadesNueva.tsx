@@ -14,6 +14,12 @@ const PropiedadesNueva: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // Contact Search State
+    const [contactSearch, setContactSearch] = useState("");
+    const [contactResults, setContactResults] = useState<any[]>([]);
+    const [searchingContacts, setSearchingContacts] = useState(false);
+    const [showContactResults, setShowContactResults] = useState(false);
+
     // Estado del formulario
     const [formData, setFormData] = useState<Partial<Propiedad> & { imagenes?: string[] }>({
         titulo: "",
@@ -35,6 +41,7 @@ const PropiedadesNueva: React.FC = () => {
         descripcion: "",
         cartel: false,
         imagenes: [],
+        contactId: undefined,
         propietario: {
             nombre: "",
             email: "",
@@ -59,6 +66,43 @@ const PropiedadesNueva: React.FC = () => {
                 .finally(() => setLoading(false));
         }
     }, [id, isEditing, API_BASE_URL]);
+
+    // Search Contacts Effect
+    useEffect(() => {
+        if (contactSearch.length > 2) {
+            setSearchingContacts(true);
+            const timer = setTimeout(() => {
+                const token = localStorage.getItem('token');
+                fetch(`${API_BASE_URL}/contacts?search=${encodeURIComponent(contactSearch)}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.ok) setContactResults(data.data);
+                    })
+                    .catch(err => console.error(err))
+                    .finally(() => setSearchingContacts(false));
+            }, 500);
+            return () => clearTimeout(timer);
+        } else {
+            setContactResults([]);
+            setShowContactResults(false);
+        }
+    }, [contactSearch, API_BASE_URL]);
+
+    const handleSelectContact = (contact: any) => {
+        setFormData(prev => ({
+            ...prev,
+            contactId: contact.id,
+            propietario: {
+                nombre: `${contact.nombre} ${contact.apellido}`,
+                email: contact.emailPrincipal || "",
+                celular: contact.telefonoPrincipal || ""
+            }
+        }));
+        setContactSearch("");
+        setShowContactResults(false);
+    };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value, type } = e.target;
@@ -117,10 +161,14 @@ const PropiedadesNueva: React.FC = () => {
                 : `${API_BASE_URL}/properties`;
 
             const method = isEditing ? "PUT" : "POST";
+            const token = localStorage.getItem('token');
 
             const res = await fetch(url, {
                 method,
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`
+                },
                 body: JSON.stringify(formData)
             });
 
@@ -391,6 +439,47 @@ const PropiedadesNueva: React.FC = () => {
                                 <h4 className="card-title">Datos Propietario</h4>
                             </div>
                             <div className="card-body">
+                                <div className="form-group mb-3" style={{ position: 'relative' }}>
+                                    <label className="form-label">Buscar Contacto Existente</label>
+                                    <input
+                                        type="text"
+                                        className="form-control form-control-rounded"
+                                        placeholder="Escribí nombre, email o teléfono..."
+                                        value={contactSearch}
+                                        onChange={(e) => {
+                                            setContactSearch(e.target.value);
+                                            setShowContactResults(true);
+                                        }}
+                                    />
+                                    {showContactResults && contactResults.length > 0 && (
+                                        <div className="search-results-dropdown" style={{
+                                            position: 'absolute',
+                                            top: '100%',
+                                            left: 0,
+                                            right: 0,
+                                            background: 'white',
+                                            border: '1px solid #ddd',
+                                            borderRadius: '8px',
+                                            zIndex: 10,
+                                            maxHeight: '200px',
+                                            overflowY: 'auto',
+                                            boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                                        }}>
+                                            {contactResults.map(c => (
+                                                <div
+                                                    key={c.id}
+                                                    className="search-result-item"
+                                                    style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #eee' }}
+                                                    onClick={() => handleSelectContact(c)}
+                                                >
+                                                    <div style={{ fontWeight: 500 }}>{c.nombre} {c.apellido}</div>
+                                                    <div style={{ fontSize: '0.8rem', color: '#666' }}>{c.emailPrincipal} - {c.telefonoPrincipal}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
                                 <div className="form-group mb-2">
                                     <label className="form-label">Nombre</label>
                                     <input type="text" className="form-control form-control-rounded" name="propietario.nombre" value={formData.propietario?.nombre || ""} onChange={handleChange} />
