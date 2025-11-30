@@ -27,7 +27,7 @@ function writeModels(models) {
 
 const OfficeModel = {
     findAll: () => readModels(),
-    findById: (id) => readModels().find(m => m.id === id),
+    findById: (id) => readModels().find(m => m.id == id),
     create: (model) => {
         const models = readModels();
         models.push(model);
@@ -36,7 +36,7 @@ const OfficeModel = {
     },
     update: (id, updates) => {
         const models = readModels();
-        const index = models.findIndex(m => m.id === id);
+        const index = models.findIndex(m => m.id == id);
         if (index === -1) return null;
 
         models[index] = { ...models[index], ...updates, updatedAt: new Date().toISOString() };
@@ -46,12 +46,15 @@ const OfficeModel = {
     delete: (id) => {
         let models = readModels();
         const initialLength = models.length;
-        models = models.filter(m => m.id !== id);
+        models = models.filter(m => m.id != id);
         if (models.length !== initialLength) {
             writeModels(models);
             return true;
         }
         return false;
+    },
+    setAll: (models) => {
+        writeModels(models);
     }
 };
 

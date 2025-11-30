@@ -58,11 +58,22 @@ const OfficeModelFormModal: React.FC<OfficeModelFormModalProps> = ({ isOpen, onC
                 body: formData
             });
 
+            console.log("Response status:", res.status);
             if (res.ok) {
+                console.log("Upload success");
                 onSuccess();
                 onClose();
             } else {
-                alert("Error al guardar modelo");
+                const errData = await res.json().catch(() => ({}));
+                console.error("Upload failed:", errData);
+
+                if (res.status === 401 || res.status === 403) {
+                    alert("Tu sesión ha expirado o no tienes permisos. Por favor, volvé a iniciar sesión.");
+                    // Optional: Redirect to login or clear token if you have a global handler
+                    // window.location.href = "/#/login"; 
+                } else {
+                    alert("Error al guardar modelo: " + (errData.message || "Desconocido"));
+                }
             }
         } catch (error) {
             console.error(error);

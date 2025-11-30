@@ -1,43 +1,36 @@
-import React, { useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import React, { useRef, useState, useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
 import ScannerModal from "../scanner/components/ScannerModal";
 import ScannerModalModern from "../scanner/components/ScannerModalModern";
 import OfficeModelFormModal from "../components/OfficeModelFormModal";
 import UseOfficeModelWizard from "../components/UseOfficeModelWizard";
 import DocumentPreviewModal from "../components/DocumentPreviewModal";
+import ConfirmDialog from "../components/ConfirmDialog";
 import { useAuth } from "../store/auth";
 import { useNavigate } from "react-router-dom";
 
 const API_BASE_URL = (import.meta as any).env.VITE_API_BASE_URL || "http://localhost:3001/api";
 
-// --- Mocks & Types ---
+// --- Types ---
 
 type DocStatus = "firmado" | "pendiente" | "borrador" | "revision";
-type DocType = "pdf" | "docx" | "jpg" | "folder";
+type DocType = "pdf" | "docx" | "jpg" | "jpeg" | "png" | "folder";
 
-interface DocumentMock {
+interface Document {
   id: string;
   name: string;
-  type: DocType;
+  type: string;
   category: string;
   date: string;
   size: string;
   status: DocStatus;
   property?: string;
+  filePath?: string;
 }
-
-const MOCK_DOCS: DocumentMock[] = [
-  { id: "d1", name: "Contrato de Alquiler - Gurruchaga", type: "pdf", category: "Contratos", date: "Hoy, 10:30", size: "2.4 MB", status: "pendiente", property: "Gurruchaga 1234" },
-  { id: "d2", name: "Reserva - Los Castores", type: "pdf", category: "Contratos", date: "Ayer, 15:45", size: "1.1 MB", status: "firmado", property: "Barrio Los Castores" },
-  { id: "d3", name: "DNI Titular (Frente)", type: "jpg", category: "Identidad", date: "22 Nov, 09:15", size: "3.5 MB", status: "revision", property: "Zapiola 800" },
-  { id: "d4", name: "Escritura Original", type: "pdf", category: "Legal", date: "20 Nov, 11:00", size: "8.2 MB", status: "firmado", property: "Gurruchaga 1234" },
-  { id: "d5", name: "Borrador - Autorización Venta", type: "docx", category: "Borradores", date: "18 Nov, 14:20", size: "450 KB", status: "borrador" },
-];
 
 const CATEGORIES = ["Todos", "Contratos", "Identidad", "Legal", "Planos", "Borradores", "Oficina modelos"];
 
 // --- Componente Principal ---
-// Integrates Office Models for authorized users (Owner, Admin, Martillero, Recepcionista)
 
 export default function Documentos() {
   // Estado del escáner
@@ -54,6 +47,10 @@ export default function Documentos() {
   // File input para “Cargar documento”
   const fileRef = useRef<HTMLInputElement | null>(null);
 
+  // --- Documents State ---
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [loadingDocs, setLoadingDocs] = useState(false);
+
   // --- Office Models State ---
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -67,13 +64,46 @@ export default function Documentos() {
   const [selectedModel, setSelectedModel] = useState<any>(null);
 
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState<{ id?: string, previewUrl?: string, title?: string, isModel?: boolean } | null>(null);
 
-  // Fetch models when category changes
-  React.useEffect(() => {
-    if (activeCategory === "Oficina modelos") {
+  // --- Delete Confirmation State ---
+  const [deleteTarget, setDeleteTarget] = useState<{
+    type: "document" | "officeModel";
+    id: string;
+    name: string;
+  } | null>(null);
+
+  // Fetch data
+  // Fetch data
+  const location = useLocation();
+
+  useEffect(() => {
+    if (user) {
+      fetchDocuments();
       fetchModels();
     }
-  }, [activeCategory]);
+  }, [location.key, user]);
+
+  const fetchDocuments = async () => {
+    setLoadingDocs(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/documents`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        // Ensure data.data is an array
+        setDocuments(Array.isArray(data.data) ? data.data : []);
+      } else {
+        console.error("Error fetching documents:", res.status);
+      }
+    } catch (e) {
+      console.error("Error fetching documents:", e);
+    } finally {
+      setLoadingDocs(false);
+    }
+  };
 
   const fetchModels = async () => {
     setLoadingModels(true);
@@ -84,7 +114,9 @@ export default function Documentos() {
       });
       if (res.ok) {
         const data = await res.json();
-        setOfficeModels(data.data);
+        setOfficeModels(Array.isArray(data.data) ? data.data : []);
+      } else {
+        console.error("Error fetching models:", res.status);
       }
     } catch (e) {
       console.error(e);
@@ -93,16 +125,92 @@ export default function Documentos() {
     }
   };
 
-  const canManageModels = user && ['OWNER', 'ADMIN', 'MARTILLERO', 'RECEPCIONISTA'].includes(user.role);
+  const canManageModels = user && ['OWNER', 'ADMIN', 'MARTILLERO', 'RECEPCIONISTA'].includes(user.role?.toUpperCase());
 
-  const handleDeleteModel = async (id: string) => {
-    if (!confirm("¿Estás seguro de eliminar este modelo?")) return;
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
     const token = localStorage.getItem('token');
-    await fetch(`${API_BASE_URL}/documents/office-models/${id}`, {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    fetchModels();
+
+    // Currently API supports single file upload per request, but let's iterate
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('category', activeCategory === "Todos" ? "General" : activeCategory);
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/documents`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData
+        });
+
+        if (!res.ok) {
+          if (res.status === 401 || res.status === 403) {
+            alert(`No se pudo subir ${file.name}: Sesión expirada.`);
+            return; // Stop uploading
+          }
+          throw new Error(`Error ${res.status}`);
+        }
+      } catch (error) {
+        console.error("Error uploading file:", error);
+        alert(`Error al subir ${file.name}`);
+      }
+    }
+
+    fetchDocuments();
+    e.target.value = "";
+  };
+
+  const handleConfirmDelete = async () => {
+    // 1. Verify we have a target and an ID
+    if (!deleteTarget || !deleteTarget.id) {
+      console.error("Intento de eliminar sin ID válido:", deleteTarget);
+      setDeleteTarget(null);
+      return;
+    }
+
+    console.log(`🗑️ Deleting ${deleteTarget.type}: ${deleteTarget.id}`);
+
+    const token = localStorage.getItem('token');
+
+    // 2. Construct URL using the ID consistently
+    const endpoint = deleteTarget.type === "officeModel"
+      ? `${API_BASE_URL}/documents/office-models/${deleteTarget.id}`
+      : `${API_BASE_URL}/documents/${deleteTarget.id}`;
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      const data = await res.json();
+
+      // 3. Handle success (including "alreadyRemoved" case)
+      if (res.ok || data.success) {
+        console.log("✅ Delete success. Refreshing list...");
+
+        if (deleteTarget.type === "officeModel") {
+          await fetchModels();
+        } else {
+          await fetchDocuments();
+        }
+        setDeleteTarget(null);
+      } else {
+        console.error("❌ Error deleting:", data);
+        if (res.status === 401 || res.status === 403) {
+          alert("Tu sesión ha expirado. Por favor, volvé a iniciar sesión.");
+        } else {
+          alert("Error al eliminar: " + (data.message || "Desconocido"));
+        }
+      }
+    } catch (e) {
+      console.error("❌ Network error deleting:", e);
+      alert("Error de conexión al eliminar");
+    }
   };
 
   // --- Funciones del Escáner ---
@@ -115,16 +223,8 @@ export default function Documentos() {
     fileRef.current?.click();
   }
 
-  function onFilesChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const fs = e.target.files;
-    if (!fs || fs.length === 0) return;
-    setInitialFiles(Array.from(fs));
-    setIsScanOpen(true);
-    e.currentTarget.value = "";
-  }
-
   // --- Filtrado ---
-  const filteredDocs = MOCK_DOCS.filter(doc => {
+  const filteredDocs = documents.filter(doc => {
     const matchesCategory = activeCategory === "Todos" || doc.category === activeCategory;
     const matchesSearch = doc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (doc.property && doc.property.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -142,14 +242,17 @@ export default function Documentos() {
     }
   };
 
-  const getTypeIcon = (type: DocType) => {
-    switch (type) {
-      case "pdf": return "📄";
-      case "docx": return "📝";
-      case "jpg": return "🖼️";
-      case "folder": return "📁";
-      default: return "📄";
-    }
+  const getTypeIcon = (type: string) => {
+    if (type.includes("pdf")) return "📄";
+    if (type.includes("doc")) return "📝";
+    if (type.includes("jpg") || type.includes("png")) return "🖼️";
+    return "📄";
+  };
+
+  const getCategoryCount = (cat: string) => {
+    if (cat === "Oficina modelos") return officeModels.length;
+    if (cat === "Todos") return documents.length;
+    return documents.filter(d => d.category === cat).length;
   };
 
   return (
@@ -446,9 +549,9 @@ export default function Documentos() {
             <input
               ref={fileRef}
               type="file"
-              accept="image/*,.pdf"
+              accept="image/*,.pdf,.docx"
               multiple
-              onChange={onFilesChange}
+              onChange={handleUpload}
               style={{ display: "none" }}
             />
           </div>
@@ -474,7 +577,7 @@ export default function Documentos() {
             >
               <span>{cat === "Todos" ? "📂" : "📁"} {cat}</span>
               <span className="category-count">
-                {cat === "Todos" ? MOCK_DOCS.length : MOCK_DOCS.filter(d => d.category === cat).length}
+                {getCategoryCount(cat)}
               </span>
             </div>
           ))}
@@ -546,7 +649,7 @@ export default function Documentos() {
                         <td>{model.description || "-"}</td>
                         <td>{model.updatedAt ? new Date(model.updatedAt).toLocaleDateString() : new Date(model.createdAt).toLocaleDateString()}</td>
                         <td>
-                          <button className="action-btn-mini" title="Vista Previa" onClick={() => { setSelectedModel(model); setIsPreviewOpen(true); }}>👁️</button>
+                          <button className="action-btn-mini" title="Vista Previa" onClick={() => { setPreviewDoc({ id: model.id, title: model.name, isModel: true, previewUrl: `${API_BASE_URL}/documents/office-models/${model.id}/preview` }); setIsPreviewOpen(true); }}>👁️</button>
 
                           <button className="action-btn-mini" title="Usar Modelo" onClick={() => { setSelectedModel(model); setIsWizardOpen(true); }}>⚙️</button>
 
@@ -555,7 +658,7 @@ export default function Documentos() {
                           {canManageModels && (
                             <>
                               <button className="action-btn-mini" title="Editar" onClick={() => { setModelToEdit(model); setIsModelFormOpen(true); }}>✏️</button>
-                              <button className="action-btn-mini" title="Eliminar" onClick={() => handleDeleteModel(model.id)}>🗑️</button>
+                              <button className="action-btn-mini" title="Eliminar" onClick={() => setDeleteTarget({ type: "officeModel", id: model.id, name: model.name })}>🗑️</button>
                             </>
                           )}
                         </td>
@@ -597,16 +700,15 @@ export default function Documentos() {
                           </span>
                         </td>
                         <td>
-                          <button className="action-btn-mini" title="Ver">👁️</button>
-                          <button className="action-btn-mini" title="Descargar">⬇️</button>
-                          <button className="action-btn-mini" title="Más opciones">⋮</button>
+                          <button className="action-btn-mini" title="Ver" onClick={() => { setPreviewDoc({ id: doc.id, title: doc.name, previewUrl: `${API_BASE_URL}/documents/${doc.id}/preview` }); setIsPreviewOpen(true); }}>👁️</button>
+                          <button className="action-btn-mini" title="Eliminar" onClick={() => setDeleteTarget({ type: "document", id: doc.id, name: doc.name })}>🗑️</button>
                         </td>
                       </tr>
                     ))}
                     {filteredDocs.length === 0 && (
                       <tr>
                         <td colSpan={5} style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
-                          No se encontraron documentos.
+                          {loadingDocs ? "Cargando documentos..." : "No se encontraron documentos."}
                         </td>
                       </tr>
                     )}
@@ -651,9 +753,18 @@ export default function Documentos() {
       <DocumentPreviewModal
         isOpen={isPreviewOpen}
         onClose={() => setIsPreviewOpen(false)}
-        modelId={selectedModel?.id}
-        title={selectedModel?.name}
-        onUseModel={() => { setIsPreviewOpen(false); setIsWizardOpen(true); }}
+        previewUrl={previewDoc?.previewUrl || ""}
+        fileName={previewDoc?.title}
+      />
+
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        title="Eliminar documento"
+        message={`¿Querés eliminar "${deleteTarget?.name}"? Esta acción no se puede deshacer.`}
+        confirmLabel="Eliminar"
+        cancelLabel="Cancelar"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
       />
 
     </div>

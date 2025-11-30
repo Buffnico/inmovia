@@ -5,6 +5,7 @@ function authRequired(req, res, next) {
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        console.log("Auth failed: Missing or invalid header", authHeader);
         return res.status(401).json({ message: 'Unauthorized' });
     }
 
@@ -15,6 +16,9 @@ function authRequired(req, res, next) {
         req.user = decoded;
         next();
     } catch (e) {
+        console.error("Auth failed: Token verification error");
+        console.error("Token:", token);
+        console.error("Error:", e.message);
         return res.status(403).json({ message: 'Invalid token' });
     }
 }

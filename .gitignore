@@ -21,3 +21,9 @@ dist/
 
 # Backend storage (modelos/salidas locales)
 apps/api/storage/
+
+# Inmovia runtime data (no versionar)
+.agent/
+apps/api/src/data/uploads/
+apps/api/src/data/documents.json
+apps/api/src/data/officeModels.json
