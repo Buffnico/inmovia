@@ -21,6 +21,7 @@
     "edu": true,
     "scanner": true,
     "social": true,
-    "ivot": true
+    "ivot": true,
+    "chat": true
   }
 }

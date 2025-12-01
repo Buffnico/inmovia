@@ -24,6 +24,7 @@ router.use('/ivot', ivotRouter);
 router.use('/alquileres', alquileresRouter);
 router.use('/notificaciones', require('./notifications'));
 router.use('/reminders', require('./reminders'));
+router.use('/chat', require('./chat'));
 
 // Google Calendar Integration
 // This router handles /api/calendar/status, /api/calendar/connect, /api/calendar/events, etc.

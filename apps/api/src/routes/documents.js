@@ -8,21 +8,7 @@ const Docxtemplater = require('docxtemplater');
 const OfficeModel = require('../models/officeModel');
 const { canManageOfficeModels, canUseOfficeModels } = require('../utils/permissions');
 const { authRequired } = require('../middleware/authMiddleware');
-
-// Helper: Convert DOCX file to PDF Buffer
-async function convertDocxFileToPdfBuffer(filePath) {
-    const libre = require('libreoffice-convert');
-    const util = require('util');
-    const convertAsync = util.promisify(libre.convert);
-
-    if (!fs.existsSync(filePath)) {
-        throw new Error("File not found for conversion: " + filePath);
-    }
-
-    const docxBuf = fs.readFileSync(filePath);
-    // Using undefined for filter allows libreoffice to auto-detect or use default
-    return await convertAsync(docxBuf, '.pdf', undefined);
-}
+const DocumentEngine = require('../services/documentEngine');
 
 // Configure Multer for uploads
 const storage = multer.diskStorage({
@@ -56,10 +42,15 @@ router.get('/', (req, res) => {
     let docs = DocumentModel.findAll();
     let changed = false;
 
-    // 1. Fix missing IDs
+    // 1. Fix missing IDs and migrate legacy docs to current user
     docs = docs.map(d => {
         if (!d.id) {
             d.id = Date.now().toString() + Math.floor(Math.random() * 1000);
+            changed = true;
+        }
+        // Migration: If no owner, assign to current user (so they don't disappear)
+        if (!d.ownerUserId) {
+            d.ownerUserId = req.user.id;
             changed = true;
         }
         return d;
@@ -76,37 +67,30 @@ router.get('/', (req, res) => {
         changed = true;
     }
 
-    // If we filtered out any documents or added IDs, update the JSON
+    // If we filtered out any documents or added IDs/owners, update the JSON
     if (changed) {
-        console.log("🔄 documents.json normalizado: se actualizaron registros (IDs o Ghosts).");
+        console.log("🔄 documents.json normalizado: se actualizaron registros (IDs, Ghosts o Owners).");
         DocumentModel.setAll(validDocs);
     }
 
-    res.json({ ok: true, data: validDocs });
+    // 3. Filter by Owner (Personal Documents)
+    const userDocs = validDocs.filter(d => d.ownerUserId === req.user.id);
+
+    // 4. Populate Property Info
+    const PropertyModel = require('../models/propertyModel');
+    const enrichedDocs = userDocs.map(doc => {
+        if (doc.propertyId) {
+            const prop = PropertyModel.findById(doc.propertyId);
+            if (prop) {
+                doc.property = `[${prop.code}] ${prop.address}`;
+            }
+        }
+        return doc;
+    });
+
+    res.json({ ok: true, data: enrichedDocs });
 });
 
-// POST /api/documents (Upload normal document)
-router.post('/', upload.single('file'), (req, res) => {
-    if (!req.file) {
-        return res.status(400).json({ ok: false, message: "No se ha subido ningún archivo." });
-    }
-
-    const newDoc = {
-        id: Date.now().toString(), // Simple ID generation
-        name: req.body.name || req.file.originalname,
-        category: req.body.category || 'General',
-        type: path.extname(req.file.originalname).replace('.', '').toLowerCase(),
-        size: (req.file.size / 1024 / 1024).toFixed(2) + ' MB',
-        date: new Date().toLocaleDateString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
-        status: 'pendiente', // Default status
-        filePath: req.file.path,
-        uploadedBy: req.user.id,
-        createdAt: new Date().toISOString()
-    };
-
-    DocumentModel.create(newDoc);
-    res.json({ ok: true, message: "Documento subido", data: newDoc });
-});
 
 // GET /api/documents/:id/preview
 router.get('/:id/preview', async (req, res) => {
@@ -123,7 +107,7 @@ router.get('/:id/preview', async (req, res) => {
         // If DOCX, try to convert to PDF for preview
         if (ext === '.docx') {
             try {
-                const pdfBuf = await convertDocxFileToPdfBuffer(doc.filePath);
+                const pdfBuf = await DocumentEngine.convertDocxFileToPdf(doc.filePath);
                 res.setHeader('Content-Type', 'application/pdf');
                 res.setHeader('Content-Disposition', `inline; filename="${(doc.name || 'document').replace('.docx', '')}.pdf"`);
                 return res.send(pdfBuf);
@@ -155,6 +139,66 @@ router.get('/:id/preview', async (req, res) => {
         console.error("Error in GET /documents/:id/preview:", error);
         res.status(500).json({ message: "Error generating preview" });
     }
+});
+
+// PATCH /api/documents/:id/approve-signature
+router.patch('/:id/approve-signature', (req, res) => {
+    const role = (req.user.role || "").toUpperCase();
+    const canSendToSignature = ["OWNER", "ADMIN", "MARTILLERO", "RECEPCIONISTA"].includes(role);
+
+    if (!canSendToSignature) {
+        return res.status(403).json({ ok: false, message: "No tienes permiso para aprobar firmas." });
+    }
+
+    const doc = DocumentModel.findById(req.params.id);
+    if (!doc) return res.status(404).json({ ok: false, message: "Documento no encontrado" });
+
+    if (!doc.signature || !doc.signature.enabled || doc.signature.status !== 'SOLICITADO') {
+        return res.status(400).json({ ok: false, message: "El documento no está en estado SOLICITADO." });
+    }
+
+    const updates = {
+        signature: {
+            ...doc.signature,
+            status: 'PENDIENTE',
+            approvedBy: req.user.id,
+            approvedAt: new Date().toISOString()
+        }
+    };
+
+    const updatedDoc = DocumentModel.update(req.params.id, updates);
+    res.json({ success: true, document: updatedDoc });
+});
+
+// PATCH /api/documents/:id/mark-signed
+router.patch('/:id/mark-signed', (req, res) => {
+    const role = (req.user.role || "").toUpperCase();
+    const canSendToSignature = ["OWNER", "ADMIN", "MARTILLERO", "RECEPCIONISTA"].includes(role);
+
+    if (!canSendToSignature) {
+        return res.status(403).json({ ok: false, message: "No tienes permiso para marcar como firmado." });
+    }
+
+    const doc = DocumentModel.findById(req.params.id);
+    if (!doc) return res.status(404).json({ ok: false, message: "Documento no encontrado" });
+
+    // Only allow if PENDIENTE
+    if (doc.signature?.status !== 'PENDIENTE') {
+        return res.status(400).json({ ok: false, message: "El documento debe estar PENDIENTE para marcarlo como firmado." });
+    }
+
+    // Update signature status
+    const updates = {
+        signature: {
+            ...doc.signature,
+            enabled: true,
+            status: 'FIRMADO',
+            signedAt: new Date().toISOString()
+        }
+    };
+
+    const updatedDoc = DocumentModel.update(req.params.id, updates);
+    res.json({ success: true, document: updatedDoc });
 });
 
 // DELETE /api/documents/:id
@@ -332,81 +376,36 @@ router.post('/office-models/:id/generate', async (req, res) => {
     }
 
     try {
-        const content = fs.readFileSync(model.filePath, 'binary');
-        const zip = new PizZip(content);
-        const doc = new Docxtemplater(zip, {
-            paragraphLoop: true,
-            linebreaks: true,
+        const result = await DocumentEngine.generateFromOfficeModel({
+            model,
+            datosManual,
+            clausulasPersonalizadas,
+            formato
         });
 
-        const dataMap = {};
-
-        if (datosManual) {
-            Object.assign(dataMap, datosManual);
-            if (datosManual.otrosCampos) {
-                Object.assign(dataMap, datosManual.otrosCampos);
-            }
-        }
-
-        if (contactId) {
-            // TODO: Fetch contact from ContactModel
-        }
-
-        if (Array.isArray(clausulasPersonalizadas) && clausulasPersonalizadas.length > 0) {
-            dataMap.clausulas_extra = clausulasPersonalizadas.join('\n\n');
-            clausulasPersonalizadas.forEach((texto, index) => {
-                dataMap[`clausula_${index + 1}`] = texto;
-            });
-        } else {
-            dataMap.clausulas_extra = "";
-        }
-
-        if (!dataMap.fechaHoy) {
-            dataMap.fechaHoy = new Date().toLocaleDateString('es-AR');
-        }
-
-        doc.render(dataMap);
-
-        const buf = doc.getZip().generate({
-            type: 'nodebuffer',
-            compression: 'DEFLATE',
-        });
-
-        const safeName = (model.name || 'documento').replace(/[^a-z0-9]/gi, '_').toLowerCase();
-
-        if (formato === 'pdf') {
-            try {
-                const libre = require('libreoffice-convert');
-                const util = require('util');
-                const convertAsync = util.promisify(libre.convert);
-
-                const pdfBuf = await convertAsync(buf, '.pdf', undefined);
-
-                res.setHeader('Content-Type', 'application/pdf');
-                res.setHeader('Content-Disposition', `attachment; filename="Generado_${safeName}.pdf"`);
-                return res.send(pdfBuf);
-
-            } catch (err) {
-                console.error("Error converting DOCX to PDF:", err);
-            }
-        }
-
-        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-        res.setHeader('Content-Disposition', `attachment; filename="Generado_${safeName}.docx"`);
-        res.send(buf);
+        res.setHeader('Content-Type', result.mimeType);
+        res.setHeader('Content-Disposition', `attachment; filename="${result.fileName}"`);
+        res.send(result.buffer);
 
     } catch (error) {
         console.error("Error generating document:", error);
 
-        if (error.properties && error.properties.errors) {
-            const errorMessages = error.properties.errors.map(e => e.properties.explanation).join(", ");
+        if (error.code === 'TEMPLATE_ERROR') {
             return res.status(400).json({
                 ok: false,
-                message: "Error en la plantilla del documento: " + errorMessages
+                message: "La plantilla Word tiene errores en los placeholders {{ }}. Revisá el archivo en Word.",
+                details: error.details || null
             });
         }
 
-        res.status(500).json({ ok: false, message: "Error interno al generar el documento." });
+        if (error.code === 'CONVERT_ERROR') {
+            return res.status(500).json({
+                ok: false,
+                message: "No se pudo convertir el documento a PDF. Intentá de nuevo o generá la versión en Word (DOCX)."
+            });
+        }
+
+        res.status(500).json({ ok: false, message: "Error interno al generar el documento: " + error.message });
     }
 });
 
@@ -501,7 +500,7 @@ router.get('/office-models/:id/preview', async (req, res) => {
         // If DOCX, convert to PDF for preview
         if (ext === '.docx') {
             try {
-                const pdfBuf = await convertDocxFileToPdfBuffer(model.filePath);
+                const pdfBuf = await DocumentEngine.convertDocxFileToPdf(model.filePath);
                 res.setHeader('Content-Type', 'application/pdf');
                 res.setHeader('Content-Disposition', `inline; filename="${(model.name || 'model').replace('.docx', '')}.pdf"`);
                 return res.send(pdfBuf);

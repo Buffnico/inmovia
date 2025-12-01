@@ -1,11 +1,13 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import ScannerModal from "../scanner/components/ScannerModal";
-import ScannerModalModern from "../scanner/components/ScannerModalModern";
 import OfficeModelFormModal from "../components/OfficeModelFormModal";
 import UseOfficeModelWizard from "../components/UseOfficeModelWizard";
 import DocumentPreviewModal from "../components/DocumentPreviewModal";
+import UploadDocumentModal from "../components/UploadDocumentModal";
+import SignatureUploadModal from "../components/SignatureUploadModal";
 import ConfirmDialog from "../components/ConfirmDialog";
+import SelectOfficeModelModal from "../components/SelectOfficeModelModal";
 import { useAuth } from "../store/auth";
 import { useNavigate } from "react-router-dom";
 
@@ -26,9 +28,23 @@ interface Document {
   status: DocStatus;
   property?: string;
   filePath?: string;
+  title?: string;
+  originalName?: string;
+  updatedAt?: string;
+  createdAt?: string;
+  agentUserId?: string | null;
+  ownerUserId?: string;
+  signature?: {
+    enabled: boolean;
+    status: "SOLICITADO" | "PENDIENTE" | "FIRMADO" | null;
+    signedAt?: string | null;
+    requestedBy?: string | null;
+    approvedBy?: string | null;
+  };
 }
 
 const CATEGORIES = ["Todos", "Contratos", "Identidad", "Legal", "Planos", "Borradores", "Oficina modelos"];
+const SIGNATURE_VIEW = "Documentos a firmar";
 
 // --- Componente Principal ---
 
@@ -37,15 +53,19 @@ export default function Documentos() {
   const [isScanOpen, setIsScanOpen] = useState(false);
   const [initialFiles, setInitialFiles] = useState<File[]>([]);
 
-  // Configuración
-  const [useLegacyScanner, setUseLegacyScanner] = useState(false);
-
   // Estado de la UI
   const [activeCategory, setActiveCategory] = useState("Todos");
   const [searchTerm, setSearchTerm] = useState("");
 
-  // File input para “Cargar documento”
-  const fileRef = useRef<HTMLInputElement | null>(null);
+  // Estado para Modal de Subida
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+
+  // Estado para subida desde Escáner
+  const [scanGeneratedFile, setScanGeneratedFile] = useState<File | null>(null);
+  const [isUploadFromScanOpen, setIsUploadFromScanOpen] = useState(false);
+
+  // Estado para Modal de Firma
+  const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
 
   // --- Documents State ---
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -60,6 +80,7 @@ export default function Documentos() {
   const [isModelFormOpen, setIsModelFormOpen] = useState(false);
   const [modelToEdit, setModelToEdit] = useState<any>(null);
 
+  const [showSelectModelModal, setShowSelectModelModal] = useState(false);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState<any>(null);
 
@@ -73,7 +94,6 @@ export default function Documentos() {
     name: string;
   } | null>(null);
 
-  // Fetch data
   // Fetch data
   const location = useLocation();
 
@@ -126,42 +146,26 @@ export default function Documentos() {
   };
 
   const canManageModels = user && ['OWNER', 'ADMIN', 'MARTILLERO', 'RECEPCIONISTA'].includes(user.role?.toUpperCase());
+  const canSendToSignature = user && ['OWNER', 'ADMIN', 'MARTILLERO', 'RECEPCIONISTA'].includes(user.role?.toUpperCase());
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    const token = localStorage.getItem('token');
-
-    // Currently API supports single file upload per request, but let's iterate
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('category', activeCategory === "Todos" ? "General" : activeCategory);
-
-      try {
-        const res = await fetch(`${API_BASE_URL}/documents`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` },
-          body: formData
-        });
-
-        if (!res.ok) {
-          if (res.status === 401 || res.status === 403) {
-            alert(`No se pudo subir ${file.name}: Sesión expirada.`);
-            return; // Stop uploading
-          }
-          throw new Error(`Error ${res.status}`);
-        }
-      } catch (error) {
-        console.error("Error uploading file:", error);
-        alert(`Error al subir ${file.name}`);
+  const handleApproveSignature = async (docId: string) => {
+    if (!confirm("¿Aprobar envío a firma de este documento?")) return;
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/documents/${docId}/approve-signature`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        fetchDocuments();
+      } else {
+        const err = await res.json();
+        alert(`Error: ${err.message}`);
       }
+    } catch (e) {
+      console.error(e);
+      alert("Error de conexión");
     }
-
-    fetchDocuments();
-    e.target.value = "";
   };
 
   const handleConfirmDelete = async () => {
@@ -213,18 +217,45 @@ export default function Documentos() {
     }
   };
 
+  const handleMarkAsSigned = async (docId: string) => {
+    if (!confirm("¿Confirmás que este documento ha sido firmado manualmente?")) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/documents/${docId}/mark-signed`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (res.ok) {
+        fetchDocuments();
+      } else {
+        alert("Error al marcar como firmado");
+      }
+    } catch (error) {
+      console.error("Error marking as signed:", error);
+      alert("Error de conexión");
+    }
+  };
+
   // --- Funciones del Escáner ---
   function openScanEmpty() {
     setInitialFiles([]);
     setIsScanOpen(true);
   }
 
-  function onPickFiles() {
-    fileRef.current?.click();
-  }
-
+  // --- Filtrado ---
   // --- Filtrado ---
   const filteredDocs = documents.filter(doc => {
+    if (activeCategory === SIGNATURE_VIEW) {
+      if (!doc.signature?.enabled) return false;
+
+      // If owner/admin, show all. If agent, show only assigned or owned.
+      if (canSendToSignature) return true;
+
+      return (doc.agentUserId === user?.id) || (doc.ownerUserId === user?.id);
+    }
+
     const matchesCategory = activeCategory === "Todos" || doc.category === activeCategory;
     const matchesSearch = doc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (doc.property && doc.property.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -242,6 +273,13 @@ export default function Documentos() {
     }
   };
 
+  const getSignatureStatusBadge = (status: string | null) => {
+    if (status === 'FIRMADO') return 'bg-green-100 text-green-700 border-green-200';
+    if (status === 'PENDIENTE') return 'bg-amber-100 text-amber-700 border-amber-200';
+    if (status === 'SOLICITADO') return 'bg-blue-100 text-blue-700 border-blue-200';
+    return 'bg-gray-100 text-gray-600';
+  };
+
   const getTypeIcon = (type: string) => {
     if (type.includes("pdf")) return "📄";
     if (type.includes("doc")) return "📝";
@@ -251,6 +289,7 @@ export default function Documentos() {
 
   const getCategoryCount = (cat: string) => {
     if (cat === "Oficina modelos") return officeModels.length;
+    if (cat === SIGNATURE_VIEW) return documents.filter(d => d.signature?.enabled).length;
     if (cat === "Todos") return documents.length;
     return documents.filter(d => d.category === cat).length;
   };
@@ -521,11 +560,11 @@ export default function Documentos() {
 
         {/* HERRAMIENTAS RÁPIDAS (Moved to top) */}
         <section className="tools-grid">
-          {/* 1. Nuevo Contrato */}
-          <div className="tool-card" onClick={() => alert("🤖 Asistente de Contratos: Seleccioná una plantilla (Alquiler, Venta, Reserva) para comenzar.")}>
+          {/* 1. Nuevo Documento */}
+          <div className="tool-card" onClick={() => setShowSelectModelModal(true)}>
             <div className="tool-icon" style={{ background: '#eff6ff', color: '#2563eb' }}>📄</div>
             <div>
-              <div className="tool-title">Nuevo Contrato</div>
+              <div className="tool-title">Nuevo Documento</div>
               <div className="tool-desc">Usar plantillas inteligentes</div>
             </div>
           </div>
@@ -540,24 +579,16 @@ export default function Documentos() {
           </div>
 
           {/* 3. Subir Archivo (Funcional) */}
-          <div className="tool-card" onClick={onPickFiles}>
+          <div className="tool-card" onClick={() => setIsUploadModalOpen(true)}>
             <div className="tool-icon" style={{ background: '#fdf4ff', color: '#c026d3' }}>☁️</div>
             <div>
               <div className="tool-title">Subir Archivo</div>
               <div className="tool-desc">Importar PDF o imágenes</div>
             </div>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*,.pdf,.docx"
-              multiple
-              onChange={handleUpload}
-              style={{ display: "none" }}
-            />
           </div>
 
           {/* 4. Firma Digital */}
-          <div className="tool-card" onClick={() => alert("✍️ Firma Digital: Seleccioná un documento para enviarlo a firmar.")}>
+          <div className="tool-card" onClick={() => setIsSignatureModalOpen(true)}>
             <div className="tool-icon" style={{ background: '#fff7ed', color: '#ea580c' }}>✍️</div>
             <div>
               <div className="tool-title">Firma Digital</div>
@@ -582,23 +613,16 @@ export default function Documentos() {
             </div>
           ))}
 
-          <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid #e2e8f0' }}>
-            <div className="category-btn" onClick={() => alert("Próximamente: Bóveda Encriptada")}>
-              <span>🔒 Bóveda Privada</span>
-            </div>
+          <div style={{ height: '1px', background: '#e2e8f0', margin: '1rem 0' }}></div>
 
-            {/* Configuración del Escáner */}
-            <div style={{ padding: '0.75rem 1rem' }}>
-              <label className="toggle-switch">
-                <div
-                  className={`toggle-track ${useLegacyScanner ? 'checked' : ''}`}
-                  onClick={() => setUseLegacyScanner(!useLegacyScanner)}
-                >
-                  <div className="toggle-thumb" />
-                </div>
-                <span>Escáner Clásico</span>
-              </label>
-            </div>
+          <div
+            className={`category-btn ${activeCategory === SIGNATURE_VIEW ? 'active' : ''}`}
+            onClick={() => setActiveCategory(SIGNATURE_VIEW)}
+          >
+            <span>✍️ {SIGNATURE_VIEW}</span>
+            <span className="category-count">
+              {getCategoryCount(SIGNATURE_VIEW)}
+            </span>
           </div>
         </aside>
 
@@ -608,7 +632,8 @@ export default function Documentos() {
           <section className="docs-table-container">
             <div className="docs-header">
               <h2 className="card-title">
-                {activeCategory === "Oficina modelos" ? "Modelos de Oficina" : "Archivos Recientes"}
+                {activeCategory === "Oficina modelos" ? "Modelos de Oficina" :
+                  activeCategory === SIGNATURE_VIEW ? "Documentos a firmar" : "Archivos Recientes"}
               </h2>
               <div style={{ display: 'flex', gap: '1rem' }}>
                 {activeCategory === "Oficina modelos" && canManageModels && (
@@ -675,7 +700,7 @@ export default function Documentos() {
                     <tr>
                       <th>Nombre</th>
                       <th>Propiedad</th>
-                      <th>Fecha</th>
+                      <th>Última Act.</th>
                       <th>Estado</th>
                       <th>Acciones</th>
                     </tr>
@@ -693,14 +718,41 @@ export default function Documentos() {
                           </div>
                         </td>
                         <td>{doc.property || "-"}</td>
-                        <td>{doc.date}</td>
                         <td>
-                          <span className={`status-badge ${getStatusColor(doc.status)}`}>
-                            {doc.status}
-                          </span>
+                          {doc.updatedAt
+                            ? new Date(doc.updatedAt).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                            : doc.date}
+                        </td>
+                        <td>
+                          {doc.signature?.enabled ? (
+                            <span className={`status-badge ${getSignatureStatusBadge(doc.signature.status)}`}>
+                              {doc.signature.status === 'FIRMADO' ? 'Firmado' :
+                                doc.signature.status === 'PENDIENTE' ? 'Pendiente' :
+                                  doc.signature.status === 'SOLICITADO' ? 'Solicitado' : '-'}
+                            </span>
+                          ) : (
+                            <span style={{ color: '#94a3b8' }}>-</span>
+                          )}
                         </td>
                         <td>
                           <button className="action-btn-mini" title="Ver" onClick={() => { setPreviewDoc({ id: doc.id, title: doc.name, previewUrl: `${API_BASE_URL}/documents/${doc.id}/preview` }); setIsPreviewOpen(true); }}>👁️</button>
+
+                          {/* Download button for signature docs */}
+                          {activeCategory === SIGNATURE_VIEW && (
+                            <a href={`${API_BASE_URL}/documents/${doc.id}/preview`} download={doc.name} className="action-btn-mini" title="Descargar" style={{ textDecoration: 'none', color: 'inherit', display: 'inline-block' }}>⬇️</a>
+                          )}
+
+                          {activeCategory === SIGNATURE_VIEW && canSendToSignature && (
+                            <>
+                              {doc.signature?.status === 'SOLICITADO' && (
+                                <button className="action-btn-mini" title="Aprobar y Enviar" onClick={() => handleApproveSignature(doc.id)}>👍</button>
+                              )}
+                              {doc.signature?.status === 'PENDIENTE' && (
+                                <button className="action-btn-mini" title="Marcar como Firmado" onClick={() => handleMarkAsSigned(doc.id)}>✅</button>
+                              )}
+                            </>
+                          )}
+
                           <button className="action-btn-mini" title="Eliminar" onClick={() => setDeleteTarget({ type: "document", id: doc.id, name: doc.name })}>🗑️</button>
                         </td>
                       </tr>
@@ -721,20 +773,18 @@ export default function Documentos() {
         </main>
       </div>
 
-      {/* ===== Modal del Escáner (Condicional) ===== */}
-      {useLegacyScanner ? (
-        <ScannerModal
-          isOpen={isScanOpen}
-          onClose={() => setIsScanOpen(false)}
-          initialFiles={initialFiles}
-        />
-      ) : (
-        <ScannerModalModern
-          isOpen={isScanOpen}
-          onClose={() => setIsScanOpen(false)}
-          initialFiles={initialFiles}
-        />
-      )}
+      {/* ===== Modal del Escáner ===== */}
+      <ScannerModal
+        isOpen={isScanOpen}
+        onClose={() => setIsScanOpen(false)}
+        initialFiles={initialFiles}
+        onSaveToDocuments={(file) => {
+          setScanGeneratedFile(file);
+          setIsUploadFromScanOpen(true);
+          // Opcional: cerrar escáner o dejarlo abierto. 
+          // Si queremos cerrarlo: setIsScanOpen(false);
+        }}
+      />
 
       {/* Modals for Office Models */}
       <OfficeModelFormModal
@@ -757,6 +807,39 @@ export default function Documentos() {
         fileName={previewDoc?.title}
       />
 
+      <UploadDocumentModal
+        isOpen={isUploadModalOpen}
+        onClose={() => setIsUploadModalOpen(false)}
+        onUploaded={fetchDocuments}
+      />
+
+      {/* Modal de subida específico para el Escáner */}
+      {isUploadFromScanOpen && scanGeneratedFile && (
+        <UploadDocumentModal
+          isOpen={true}
+          onClose={() => {
+            setIsUploadFromScanOpen(false);
+            setScanGeneratedFile(null);
+          }}
+          onUploaded={() => {
+            fetchDocuments();
+            setIsUploadFromScanOpen(false);
+            setScanGeneratedFile(null);
+            // También cerramos el escáner al terminar con éxito
+            setIsScanOpen(false);
+          }}
+          initialFile={scanGeneratedFile}
+          initialTitle={scanGeneratedFile.name.replace('.pdf', '')}
+        />
+      )}
+
+      <SignatureUploadModal
+        isOpen={isSignatureModalOpen}
+        onClose={() => setIsSignatureModalOpen(false)}
+        onUploaded={fetchDocuments}
+        canSendToSignature={!!canSendToSignature}
+      />
+
       <ConfirmDialog
         isOpen={!!deleteTarget}
         title="Eliminar documento"
@@ -765,6 +848,17 @@ export default function Documentos() {
         cancelLabel="Cancelar"
         onConfirm={handleConfirmDelete}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      <SelectOfficeModelModal
+        isOpen={showSelectModelModal}
+        officeModels={officeModels}
+        onClose={() => setShowSelectModelModal(false)}
+        onSelect={(model) => {
+          setShowSelectModelModal(false);
+          setSelectedModel(model);
+          setIsWizardOpen(true);
+        }}
       />
 
     </div>

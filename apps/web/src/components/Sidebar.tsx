@@ -61,7 +61,8 @@ const Sidebar: React.FC<{ isOpen?: boolean; onClose?: () => void }> = ({ isOpen,
       '/edu': 'edu',
       '/documentos': 'scanner',
       '/redes': 'social',
-      '/ivot': 'ivot'
+      '/ivot': 'ivot',
+      '/chat-interno': 'chat'
     };
 
     const moduleKey = moduleMap[item.to];

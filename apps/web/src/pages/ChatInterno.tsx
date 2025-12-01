@@ -1,246 +1,540 @@
 // apps/web/src/pages/ChatInterno.tsx
 import React, { useState, useRef, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { useAuth } from "../store/auth";
+import { NewChatModal, NewGroupModal, BroadcastModal } from "../components/ChatModals";
 import "./ChatInterno.css";
 
-type UserStatus = "online" | "offline" | "busy";
+const API_BASE_URL = (import.meta as any).env.VITE_API_BASE_URL || "http://localhost:3001/api";
 
-type ChatUser = {
+type User = {
   id: string;
   name: string;
   role: string;
-  status: UserStatus;
-  unread?: number;
   avatarColor?: string;
+};
+
+type Attachment = {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
 };
 
 type Message = {
   id: string;
-  from: "yo" | "otro";
+  conversationId: string;
+  senderId: string;
   text: string;
-  time: string;
+  createdAt: string;
+  attachments?: Attachment[];
 };
 
-const DUMMY_USERS: ChatUser[] = [
-  { id: "broker", name: "Martín (Broker)", role: "Broker / Dueño", status: "online", avatarColor: "#2563eb" },
-  { id: "martillero", name: "Laura (Martillera)", role: "Martillero Público", status: "offline", avatarColor: "#7c3aed" },
-  { id: "admin", name: "Soporte Admin", role: "Administración", status: "online", unread: 3, avatarColor: "#db2777" },
-  { id: "agente1", name: "Juan Pérez", role: "Agente", status: "online", avatarColor: "#059669" },
-  { id: "agente2", name: "Sofía G.", role: "Agente", status: "busy", avatarColor: "#d97706" },
-  { id: "agente3", name: "Carlos M.", role: "Agente", status: "offline", avatarColor: "#4b5563" },
-];
-
-const DUMMY_MESSAGES: Record<string, Message[]> = {
-  broker: [
-    { id: "m1", from: "otro", text: "Hola, necesito ver los números de cierre de mes.", time: "09:12" },
-    { id: "m2", from: "yo", text: "En un momento te los paso.", time: "09:15" },
-  ],
-  admin: [
-    { id: "m3", from: "otro", text: "Falta firmar la reserva de Alsina.", time: "11:00" },
-    { id: "m4", from: "otro", text: "¿Podés pasar por la oficina?", time: "11:01" },
-  ],
+type Conversation = {
+  id: string;
+  type: 'direct' | 'group';
+  name?: string;
+  displayName?: string;
+  participants: string[];
+  participantsDetails: User[];
+  lastMessage?: Message;
+  unreadCount?: number;
 };
 
 export default function ChatInterno() {
-  const [selectedUserId, setSelectedUserId] = useState<string>("broker");
-  const [messagesByUser, setMessagesByUser] = useState<Record<string, Message[]>>(DUMMY_MESSAGES);
-  const [draft, setDraft] = useState<string>("");
+  const { user } = useAuth();
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [activeConvoId, setActiveConvoId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [draft, setDraft] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+
+  // Modals state
+  const [showNewChat, setShowNewChat] = useState(false);
+  const [showNewGroup, setShowNewGroup] = useState(false);
+  const [showBroadcast, setShowBroadcast] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // UI State
+  const [mobileView, setMobileView] = useState<'list' | 'chat'>('list');
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const activeUser = DUMMY_USERS.find((u) => u.id === selectedUserId) ?? DUMMY_USERS[0];
-  const messages = messagesByUser[selectedUserId] ?? [];
+  const activeConvo = conversations.find(c => c.id === activeConvoId);
+  const isEncargado = user && ['OWNER', 'ADMIN', 'MARTILLERO', 'RECEPCIONISTA'].includes(user.role?.toUpperCase());
 
+  const emojis = ["👍", "👋", "😊", "😂", "❤️", "🎉", "🔥", "🤔", "😢", "👀", "🙌", "🚀", "💼", "🏠", "✅", "❌"];
+
+  // Fetch conversations on mount
+  useEffect(() => {
+    fetchConversations();
+    fetchUsers();
+
+    const interval = setInterval(() => {
+      fetchConversations();
+      if (activeConvoId) fetchMessages(activeConvoId);
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [activeConvoId]);
+
+  // Fetch messages when active conversation changes
+  useEffect(() => {
+    if (activeConvoId) {
+      fetchMessages(activeConvoId);
+      setMobileView('chat');
+      setShowEmojiPicker(false);
+    } else {
+      setMobileView('list');
+    }
+  }, [activeConvoId]);
+
+  // Scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, selectedUserId]);
+  }, [messages]);
 
-  function handleSend(e: React.FormEvent) {
+  const fetchConversations = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/chat/conversations`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setConversations(data.data);
+      }
+    } catch (error) {
+      console.error("Error fetching conversations:", error);
+    }
+  };
+
+  const fetchMessages = async (convoId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/chat/conversations/${convoId}/messages`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setMessages(data.data);
+      }
+    } catch (error) {
+      console.error("Error fetching messages:", error);
+    }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/users`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setUsers(data.data.filter((u: any) => u.id !== user?.id));
+      }
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    }
+  };
+
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    const text = draft.trim();
-    if (!text) return;
+    if ((!draft.trim() && files.length === 0) || !activeConvoId) return;
 
-    const newMsg: Message = {
-      id: `local-${Date.now()}`,
-      from: "yo",
-      text,
-      time: new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
-    };
+    const formData = new FormData();
+    formData.append('text', draft);
+    files.forEach(f => formData.append('files', f));
 
-    setMessagesByUser((prev) => ({
-      ...prev,
-      [selectedUserId]: [...(prev[selectedUserId] ?? []), newMsg],
-    }));
-    setDraft("");
-  }
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/chat/conversations/${activeConvoId}/messages`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+
+      if (res.ok) {
+        setDraft("");
+        setFiles([]);
+        setShowEmojiPicker(false);
+        fetchMessages(activeConvoId);
+        fetchConversations();
+      }
+    } catch (error) {
+      console.error("Error sending message:", error);
+      alert("Error al enviar mensaje");
+    }
+  };
+
+  const handleCreateChat = async (data: any) => {
+    setIsLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/chat/conversations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(data)
+      });
+      const result = await res.json();
+      if (result.ok) {
+        setShowNewChat(false);
+        setShowNewGroup(false);
+        fetchConversations();
+        setActiveConvoId(result.data.id);
+      } else {
+        alert(result.message);
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Error al crear chat");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleBroadcast = async (data: any) => {
+    setIsLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/chat/broadcast`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(data)
+      });
+      const result = await res.json();
+      if (result.ok) {
+        setShowBroadcast(false);
+        alert(result.message);
+        fetchConversations();
+      } else {
+        alert(result.message);
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Error enviando broadcast");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDownload = async (attId: string, convoId: string, fileName: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/chat/attachments/${attId}?conversationId=${convoId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        alert("Error al descargar archivo");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Error de conexión");
+    }
+  };
+
+  const addEmoji = (emoji: string) => {
+    setDraft(prev => prev + emoji);
+    setShowEmojiPicker(false);
+  };
+
+  const filteredConversations = conversations.filter(c => {
+    const term = searchTerm.toLowerCase();
+    return (c.displayName || c.name || '').toLowerCase().includes(term);
+  });
 
   return (
     <div className="page chat-page">
-      {/* Header de la sección */}
-      <div className="page-header">
-        <h1 className="page-title">Chat de Oficina</h1>
-        <p className="page-subtitle">Conectado con el equipo Inmovia.</p>
-      </div>
-
       <div className="chat-container">
-        {/* SIDEBAR DE USUARIOS (IZQUIERDA) */}
-        <aside className="chat-sidebar">
-          <div className="chat-search-container">
-            <input
-              type="text"
-              placeholder="Buscar compañero..."
-              className="chat-search-input"
-            />
+        {/* SIDEBAR */}
+        <aside className={`chat-sidebar ${mobileView === 'chat' ? 'd-none d-md-flex' : 'd-flex'}`}>
+          <div className="chat-sidebar-header">
+            <div className="chat-actions">
+              <button className="btn btn-primary btn-sm btn-pill" onClick={() => setShowNewChat(true)}>+ Chat</button>
+              {isEncargado && (
+                <>
+                  <button className="btn btn-outline-primary btn-sm btn-pill" onClick={() => setShowNewGroup(true)}>👥 Grupo</button>
+                  <button className="btn btn-outline-primary btn-sm btn-pill" onClick={() => setShowBroadcast(true)}>📢 Masivo</button>
+                </>
+              )}
+            </div>
+            <div className="chat-search-wrapper">
+              <span className="search-icon">🔍</span>
+              <input
+                type="text"
+                placeholder="Buscar por nombre o grupo..."
+                className="chat-search-input"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+              />
+            </div>
           </div>
 
-          <div className="chat-users-list">
-            <div className="chat-users-section-title">
-              Usuarios
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              {DUMMY_USERS.map(u => (
-                <UserListItem
-                  key={u.id}
-                  user={u}
-                  active={selectedUserId === u.id}
-                  onClick={() => setSelectedUserId(u.id)}
-                />
-              ))}
-            </div>
+          <div className="chat-conversation-list">
+            {filteredConversations.map(c => (
+              <ConversationItem
+                key={c.id}
+                convo={c}
+                active={activeConvoId === c.id}
+                onClick={() => setActiveConvoId(c.id)}
+                currentUserId={user?.id}
+              />
+            ))}
+            {filteredConversations.length === 0 && (
+              <div className="chat-empty-list">
+                <div className="empty-icon">💬</div>
+                <p>No se encontraron conversaciones.</p>
+                <button className="btn-link" onClick={() => setShowNewChat(true)}>Iniciar nueva</button>
+              </div>
+            )}
           </div>
         </aside>
 
-        {/* ÁREA DE CHAT (DERECHA) */}
-        <section className="chat-main-area">
-          {/* Header del Chat Activo */}
-          <header className="chat-header">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <div className="chat-avatar-wrapper">
-                <div className="chat-avatar" style={{ background: activeUser.avatarColor || '#cbd5e1' }}>
-                  {activeUser.name.charAt(0)}
+        {/* MAIN AREA */}
+        <section className={`chat-main-area ${mobileView === 'list' ? 'd-none d-md-flex' : 'd-flex'}`}>
+          {activeConvo ? (
+            <>
+              <header className="chat-header">
+                <div className="chat-header-info">
+                  <button className="btn-icon d-md-none back-btn" onClick={() => setMobileView('list')}>←</button>
+
+                  <div className="chat-avatar-large" style={{ background: '#3b82f6' }}>
+                    {activeConvo.type === 'group' ? '👥' : (activeConvo.displayName?.charAt(0) || activeConvo.name?.charAt(0) || '?')}
+                  </div>
+
+                  <div className="chat-header-text">
+                    <h2 className="chat-title">
+                      {activeConvo.displayName || activeConvo.name}
+                    </h2>
+                    <span className="chat-subtitle">
+                      {activeConvo.type === 'group'
+                        ? `Grupo • ${activeConvo.participants.length} participantes`
+                        : 'Chat Directo'}
+                    </span>
+                  </div>
                 </div>
-                <div className="chat-status-dot" style={{
-                  background: activeUser.status === 'online' ? '#22c55e' : (activeUser.status === 'busy' ? '#f59e0b' : '#94a3b8')
-                }} />
+
+                <div className="chat-header-actions">
+                  <button className="btn-icon" title="Info">ℹ️</button>
+                </div>
+              </header>
+
+              <div className="chat-messages-list">
+                {messages.length === 0 ? (
+                  <div className="chat-empty-state">
+                    <div className="empty-icon-large">👋</div>
+                    <h3>Comienza la charla</h3>
+                    <p>Envía un mensaje para iniciar la conversación.</p>
+                  </div>
+                ) : (
+                  messages.map((m, idx) => {
+                    const prevMsg = messages[idx - 1];
+                    const showDate = !prevMsg || new Date(m.createdAt).toDateString() !== new Date(prevMsg.createdAt).toDateString();
+
+                    return (
+                      <React.Fragment key={m.id}>
+                        {showDate && (
+                          <div className="chat-date-separator">
+                            <span>{new Date(m.createdAt).toLocaleDateString()}</span>
+                          </div>
+                        )}
+                        <MessageBubble
+                          msg={m}
+                          isMe={m.senderId === user?.id}
+                          onDownload={handleDownload}
+                          senderName={activeConvo.type === 'group' && m.senderId !== user?.id
+                            ? activeConvo.participantsDetails.find(p => p.id === m.senderId)?.name
+                            : undefined}
+                        />
+                      </React.Fragment>
+                    );
+                  })
+                )}
+                <div ref={messagesEndRef} />
               </div>
-              <div>
-                <div style={{ fontWeight: 700, color: '#0f172a' }}>{activeUser.name}</div>
-                <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{activeUser.role}</div>
+
+              <div className="chat-composer">
+                {files.length > 0 && (
+                  <div className="composer-files">
+                    {files.map((f, i) => (
+                      <div key={i} className="file-pill">
+                        <span>📄 {f.name}</span>
+                        <button onClick={() => setFiles(files.filter((_, idx) => idx !== i))}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {showEmojiPicker && (
+                  <div className="emoji-picker-popover">
+                    {emojis.map(e => (
+                      <button key={e} onClick={() => addEmoji(e)}>{e}</button>
+                    ))}
+                  </div>
+                )}
+
+                <form onSubmit={handleSendMessage} className="composer-form">
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    style={{ display: 'none' }}
+                    onChange={e => {
+                      if (e.target.files) setFiles(Array.from(e.target.files));
+                    }}
+                    multiple
+                  />
+                  <button type="button" className="btn-icon" title="Adjuntar" onClick={() => fileInputRef.current?.click()}>📎</button>
+
+                  <input
+                    type="text"
+                    className="composer-input"
+                    placeholder="Escribe un mensaje..."
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage(e);
+                      }
+                    }}
+                  />
+
+                  <button type="button" className="btn-icon" title="Emoji" onClick={() => setShowEmojiPicker(!showEmojiPicker)}>🙂</button>
+
+                  <button
+                    type="submit"
+                    className="btn-send"
+                    disabled={!draft.trim() && files.length === 0}
+                  >
+                    ➤
+                  </button>
+                </form>
               </div>
+            </>
+          ) : (
+            <div className="chat-welcome-state">
+              <div className="welcome-icon">💬</div>
+              <h2>Bienvenido al Chat Interno</h2>
+              <p>Selecciona una conversación o crea un nuevo chat para comenzar.</p>
             </div>
-
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button className="btn-icon" title="Llamar">📞</button>
-              <button className="btn-icon" title="Video">📹</button>
-              <button className="btn-icon" title="Info">ℹ️</button>
-            </div>
-          </header>
-
-          {/* Lista de Mensajes */}
-          <div className="chat-messages-list">
-            {messages.length === 0 ? (
-              <div style={{ margin: 'auto', textAlign: 'center', opacity: 0.6 }}>
-                <div style={{ fontSize: '3rem', marginBottom: '1rem', filter: 'grayscale(1)' }}>👋</div>
-                <p>Inicia la conversación con {activeUser.name.split(' ')[0]}.</p>
-              </div>
-            ) : (
-              messages.map((m) => (
-                <MessageBubble key={m.id} msg={m} />
-              ))
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Input Area */}
-          <div className="chat-input-area">
-            <form onSubmit={handleSend} className="chat-input-form">
-              <button type="button" className="btn-icon-small" title="Adjuntar">📎</button>
-
-              <input
-                type="text"
-                placeholder="Escribe un mensaje..."
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                style={{
-                  flex: 1,
-                  background: 'transparent',
-                  border: 'none',
-                  outline: 'none',
-                  fontSize: '0.95rem',
-                  color: '#0f172a',
-                  padding: '0.25rem'
-                }}
-              />
-
-              <button
-                type="submit"
-                disabled={!draft.trim()}
-                style={{
-                  background: draft.trim() ? 'var(--inmovia-primary)' : '#cbd5e1',
-                  color: 'white',
-                  border: 'none',
-                  width: '36px',
-                  height: '36px',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: draft.trim() ? 'pointer' : 'default',
-                  transition: 'all 0.2s'
-                }}
-              >
-                ➤
-              </button>
-            </form>
-          </div>
-
+          )}
         </section>
+      </div>
+
+      {/* Modals */}
+      <NewChatModal
+        isOpen={showNewChat}
+        onClose={() => setShowNewChat(false)}
+        users={users}
+        onSubmit={handleCreateChat}
+        isLoading={isLoading}
+      />
+      <NewGroupModal
+        isOpen={showNewGroup}
+        onClose={() => setShowNewGroup(false)}
+        users={users}
+        onSubmit={handleCreateChat}
+        isLoading={isLoading}
+      />
+      <BroadcastModal
+        isOpen={showBroadcast}
+        onClose={() => setShowBroadcast(false)}
+        users={users}
+        onSubmit={handleBroadcast}
+        isLoading={isLoading}
+      />
+    </div>
+  );
+}
+
+function ConversationItem({ convo, active, onClick, currentUserId }: { convo: Conversation, active: boolean, onClick: () => void, currentUserId?: string }) {
+  const lastMsg = convo.lastMessage;
+  const time = lastMsg ? new Date(lastMsg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  const isGroup = convo.type === 'group';
+
+  return (
+    <div
+      onClick={onClick}
+      className={`chat-conversation-item ${active ? 'active' : ''}`}
+    >
+      <div className="conversation-avatar">
+        {isGroup ? '👥' : (convo.displayName?.charAt(0) || convo.name?.charAt(0) || '?')}
+      </div>
+
+      <div className="conversation-info">
+        <div className="conversation-header">
+          <span className="conversation-name">
+            {convo.displayName || convo.name}
+          </span>
+          <span className="conversation-time">{time}</span>
+        </div>
+        <div className="conversation-snippet">
+          {lastMsg ? (
+            <span>{lastMsg.senderId === currentUserId ? 'Tú: ' : ''}{lastMsg.text || '📎 Adjunto'}</span>
+          ) : (
+            <span className="text-italic">Nueva conversación</span>
+          )}
+          {convo.unreadCount ? <span className="unread-dot">●</span> : null}
+        </div>
       </div>
     </div>
   );
 }
 
-function UserListItem({ user, active, onClick }: { user: ChatUser, active: boolean, onClick: () => void }) {
+function MessageBubble({ msg, isMe, onDownload, senderName }: { msg: Message, isMe: boolean, onDownload: (attId: string, convoId: string, fileName: string) => void, senderName?: string }) {
+  const time = new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
   return (
-    <button
-      onClick={onClick}
-      className={`chat-user-item ${active ? 'active' : ''}`}
-    >
-      <div className="chat-avatar-wrapper">
-        <div className="chat-avatar" style={{ background: user.avatarColor || '#cbd5e1' }}>
-          {user.name.charAt(0)}
-        </div>
-        <div className="chat-status-dot" style={{
-          background: user.status === 'online' ? '#22c55e' : (user.status === 'busy' ? '#f59e0b' : '#94a3b8')
-        }} />
-      </div>
+    <div className={`chat-message-row ${isMe ? 'mine' : 'other'}`}>
+      <div className="chat-bubble">
+        {senderName && <div className="bubble-sender">{senderName}</div>}
 
-      <div className="chat-user-info">
-        <div className="chat-user-name" style={{ fontWeight: active || user.unread ? 700 : 500 }}>
-          {user.name}
-        </div>
-        <div className="chat-user-role">
-          {user.role}
-        </div>
-      </div>
+        {msg.text && <div className="bubble-text">{msg.text}</div>}
 
-      {user.unread ? (
-        <div className="chat-unread-badge">
-          {user.unread}
-        </div>
-      ) : null}
-    </button>
-  );
-}
+        {msg.attachments && msg.attachments.length > 0 && (
+          <div className="bubble-attachments">
+            {msg.attachments.map(att => (
+              <div key={att.id} className="attachment-card">
+                <span className="att-icon">📄</span>
+                <div className="att-info">
+                  <span className="att-name">{att.fileName}</span>
+                  <button
+                    className="att-download"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      onDownload(att.id, msg.conversationId, att.fileName);
+                    }}
+                  >
+                    Descargar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
-function MessageBubble({ msg }: { msg: Message }) {
-  const isMe = msg.from === "yo";
-  return (
-    <div className="chat-bubble-container" style={{ justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
-      <div className={`chat-bubble ${isMe ? 'chat-bubble-me' : 'chat-bubble-other'}`}>
-        <div style={{ fontSize: '0.95rem', lineHeight: 1.5 }}>{msg.text}</div>
-        <div className="chat-bubble-time" style={{ color: isMe ? '#e0e7ff' : '#94a3b8' }}>
-          {msg.time}
+        <div className="bubble-time">
+          {time}
         </div>
       </div>
     </div>
