@@ -1,7 +1,8 @@
-import { FormEvent, useState, Suspense, Component, ReactNode, lazy } from "react";
+import { FormEvent, useState, Suspense, Component, ReactNode, lazy, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 import ivoLogo from "../assets/ivot-logo.png";
 import "../pages/IvoT.css";
+import { IvoChatService } from "../services/ivoChatService";
 
 // Lazy load the 3D component to isolate Three.js dependencies
 const IvoT3D = lazy(() => import("./IvoT3D"));
@@ -59,11 +60,31 @@ export default function IvoTFab() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Msg[]>(INITIAL_MSGS);
   const [draft, setDraft] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  function handleSend(e: FormEvent) {
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-scroll to bottom whenever messages change or loading state changes
+  useEffect(() => {
+    if (open) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, isLoading, open]);
+
+  // Focus input when chat opens
+  useEffect(() => {
+    if (open) {
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
+    }
+  }, [open]);
+
+  async function handleSend(e: FormEvent) {
     e.preventDefault();
     const text = draft.trim();
-    if (!text) return;
+    if (!text || isLoading) return;
 
     const now = new Date().toLocaleTimeString("es-AR", {
       hour: "2-digit",
@@ -77,16 +98,53 @@ export default function IvoTFab() {
       time: now,
     };
 
-    // Maqueta: Ivo-t responde automáticamente con un mensaje fijo
-    const botMsg: Msg = {
-      id: `b-${Date.now()}`,
-      from: "bot",
-      text: "Esta es una demo visual. En la versión real, Ivo-t va a conectarse a la IA y a tu agenda para ayudarte.",
-      time: now,
-    };
-
-    setMessages((prev) => [...prev, userMsg, botMsg]);
+    setMessages((prev) => [...prev, userMsg]);
     setDraft("");
+    setIsLoading(true);
+
+    // Keep focus on input
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 0);
+
+    try {
+      const history = messages.concat(userMsg).map((m) => ({
+        role: m.from === "user" ? "user" : "assistant",
+        content: m.text,
+      })) as { role: "user" | "assistant"; content: string }[];
+
+      const responseMessage = await IvoChatService.sendMessage(history);
+
+      const botMsg: Msg = {
+        id: `b-${Date.now()}`,
+        from: "bot",
+        text: responseMessage,
+        time: new Date().toLocaleTimeString("es-AR", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      };
+
+      setMessages((prev) => [...prev, botMsg]);
+    } catch (error) {
+      console.error("Error al comunicarse con Ivo-t:", error);
+      const errorMsg: Msg = {
+        id: `e-${Date.now()}`,
+        from: "bot",
+        text: "Hubo un problema al conectar con Ivo-t. Intentá de nuevo.",
+        time: new Date().toLocaleTimeString("es-AR", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      };
+      setMessages((prev) => [...prev, errorMsg]);
+    } finally {
+      setIsLoading(false);
+      // Ensure focus is back on input after loading
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 0);
+    }
   }
 
   const FallbackImage = (
@@ -119,8 +177,10 @@ export default function IvoTFab() {
             position: "relative", // Override CSS fixed
             bottom: "auto",
             right: "auto",
-            width: "320px",
-            height: "450px",
+            width: "420px",
+            height: "600px",
+            maxWidth: "90vw",
+            maxHeight: "80vh",
             pointerEvents: "auto", // Re-enable clicks
             marginBottom: "8px",
           }}
@@ -161,26 +221,29 @@ export default function IvoTFab() {
                   <div className="ivo-chat-msg-time">{m.time}</div>
                 </div>
               ))}
+              {isLoading && (
+                <div className="ivo-chat-msg ivo-chat-msg-bot">
+                  <div className="ivo-chat-msg-text">
+                    <em>Ivo-t está escribiendo...</em>
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
             </div>
 
             <form className="ivo-chat-input-row" onSubmit={handleSend}>
               <input
+                ref={inputRef}
                 type="text"
                 placeholder="Escribí tu mensaje..."
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
+                disabled={isLoading}
               />
-              <button type="submit" className="btn btn-primary">
+              <button type="submit" className="btn btn-primary" disabled={isLoading}>
                 Enviar
               </button>
             </form>
-
-            <div className="ivo-chat-footer">
-              <span>
-                Esta es una demo de Ivo-t. Para más opciones, abrí la{" "}
-                <Link to="/ivo-t">vista completa</Link>.
-              </span>
-            </div>
           </div>
         </div>
       )}

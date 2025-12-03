@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../store/auth";
 import { ROLES } from "../config/roles";
 import NotificationBell from "./NotificationsBell";
+import logoInmovia from "../assets/logo-inmovia.png";
 
 const HeaderBar: React.FC = () => {
     const { user, logout } = useAuth();
@@ -51,11 +52,19 @@ const HeaderBar: React.FC = () => {
             {/* Left: Logo & Title */}
             <div className="app-header__left" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <div className="app-header__logo" style={{
-                    fontWeight: '800',
-                    fontSize: '1.5rem',
-                    color: '#2563eb',
-                    letterSpacing: '-0.025em'
-                }}>IO</div>
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: '#ffffff',
+                    borderRadius: '12px',
+                    padding: '4px'
+                }}>
+                    <img
+                        src={logoInmovia}
+                        alt="Logo"
+                        style={{ height: '32px', width: '32px', objectFit: 'contain' }}
+                    />
+                </div>
                 <span className="app-header__title" style={{
                     fontWeight: 600,
                     fontSize: '1.1rem',

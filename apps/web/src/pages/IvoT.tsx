@@ -4,6 +4,7 @@ import { useLocation } from "react-router-dom";
 import ivoLogo from "../assets/ivot-logo.png";
 import "./IvoT.css";
 import { useAuth } from "../store/auth";
+import { IvoChatService } from "../services/ivoChatService";
 
 type Tool = {
   id: string;
@@ -144,7 +145,7 @@ export default function IvoT() {
 
     try {
       // Preparar historial para OpenAI
-      let history = messages.concat(userMsg).map((m) => ({
+      let history: { role: "user" | "assistant" | "system"; content: string }[] = messages.concat(userMsg).map((m) => ({
         role: m.from === "yo" ? "user" : "assistant",
         content: m.text,
       }));
@@ -164,23 +165,12 @@ export default function IvoT() {
         });
       }
 
-      const response = await fetch(API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ history }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(`Error ${response.status}: ${errorData.error || response.statusText}`);
-      }
-
-      const data = await response.json();
+      const responseMessage = await IvoChatService.sendMessage(history);
 
       const botMsg: ChatMsg = {
         id: `b-${Date.now()}`,
         from: "ivo-t",
-        text: data.message,
+        text: responseMessage,
         time: new Date().toLocaleTimeString("es-AR", {
           hour: "2-digit",
           minute: "2-digit",
@@ -191,7 +181,7 @@ export default function IvoT() {
 
       // Detect summary in document mode
       if (mode === "documentModel") {
-        setLastAssistantSummary(data.message);
+        setLastAssistantSummary(responseMessage);
         setShowGenerateOptions(true);
       }
 
@@ -200,7 +190,7 @@ export default function IvoT() {
       const errorMsg: ChatMsg = {
         id: `e-${Date.now()}`,
         from: "ivo-t",
-        text: `Error conectando a ${API_URL}: ${error instanceof Error ? error.message : String(error)}`,
+        text: `Error conectando a Ivo-t: ${error instanceof Error ? error.message : String(error)}`,
         time: new Date().toLocaleTimeString("es-AR", {
           hour: "2-digit",
           minute: "2-digit",

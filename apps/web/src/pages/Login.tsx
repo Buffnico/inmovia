@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AuthService from '../services/authService';
+import logoInmovia from '../assets/logo-inmovia.png';
 
 export default function Login() {
     const navigate = useNavigate();
@@ -45,8 +46,34 @@ export default function Login() {
         }}>
             <div className="card" style={{ width: '100%', maxWidth: '400px', padding: '2rem' }}>
                 <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-                    <h1 className="brand-title" style={{ fontSize: '1.8rem' }}>Inmovia Office</h1>
-                    <p className="text-muted">Ingresá a tu oficina digital</p>
+                    <div
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            marginBottom: "12px",
+                        }}
+                    >
+                        <div
+                            style={{
+                                background: "#ffffff",
+                                borderRadius: "9999px",
+                                padding: "8px",
+                                boxShadow: "0 10px 25px rgba(15, 23, 42, 0.12)",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                            }}
+                        >
+                            <img
+                                src={logoInmovia}
+                                alt="Logo Inmovia Office"
+                                style={{ height: "68px", width: "68px", objectFit: "contain" }}
+                            />
+                        </div>
+                    </div>
+                    <h1 className="login-title">Inmovia Office</h1>
+                    <p className="login-subtitle">Ingresá a tu oficina digital</p>
                 </div>
 
                 {error && (

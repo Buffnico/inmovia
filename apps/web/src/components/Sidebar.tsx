@@ -1,3 +1,4 @@
+// apps/web/src/components/Sidebar.tsx
 import React from "react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../store/auth";
@@ -21,12 +22,6 @@ const navItems: NavItem[] = [
   { to: "/chat-interno", label: "Chat interno", icon: "💬" },
   { to: "/alquileres", label: "Alquileres", icon: "🔑" },
   { to: "/redes", label: "Redes", icon: "📱" },
-  {
-    to: "/whatsapp",
-    label: "WhatsApp",
-    icon: "📞",
-    iconClass: "sidebar__link-icon--whatsapp",
-  },
   {
     to: "/ivot",
     label: "Ivo-t",
@@ -57,7 +52,6 @@ const Sidebar: React.FC<{ isOpen?: boolean; onClose?: () => void }> = ({ isOpen,
       '/propiedades': 'properties',
       '/agenda': 'agenda',
       '/clientes': 'contacts',
-      '/whatsapp': 'whatsapp',
       '/edu': 'edu',
       '/documentos': 'scanner',
       '/redes': 'social',

@@ -9,7 +9,7 @@ import {
 import App from "./App";
 
 // Páginas
-import Home from "./pages/Home";
+import HomeLanding from "./pages/HomeLanding";
 import Dashboard from "./pages/Dashboard";
 import Alquileres from "./pages/Alquileres";
 import Propiedades from "./pages/Propiedades";
@@ -41,8 +41,8 @@ const AppRouter: React.FC = () => {
     <HashRouter>
       <Routes>
         <Route path="/" element={<App />}>
-          {/* Home sin sidebar */}
-          <Route index element={<Home />} />
+          {/* Home Landing Pública (Nueva Versión) */}
+          <Route index element={<HomeLanding />} />
 
           {/* Rutas internas protegidas */}
           <Route element={<ProtectedRoute />}>

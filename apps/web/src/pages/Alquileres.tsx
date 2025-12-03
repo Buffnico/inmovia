@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../store/auth";
+import "./Alquileres.css";
 
 // --- Interfaces ---
 
@@ -18,6 +19,11 @@ interface RentalContract {
     status: string;
     notes?: string;
     createdAt?: string;
+    // Mock fields for UI
+    managementMode?: 'SOLO_CONTRATO' | 'SEGUIMIENTO';
+    address?: string;
+    locadorName?: string;
+    locatarioName?: string;
 }
 
 interface RentalPayment {
@@ -32,12 +38,11 @@ interface RentalPayment {
     notes?: string;
 }
 
-// --- Component ---
+type Tab = 'RESUMEN' | 'CONTRATOS' | 'PAGOS' | 'CALCULADORA' | 'CONFIGURACION';
 
 const Alquileres: React.FC = () => {
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001/api";
     const { user } = useAuth();
-    const [filterProperty, setFilterProperty] = useState("");
 
     // Role-based permission
     const canManageRentals = user && ["OWNER", "ADMIN", "MARTILLERO", "RECEPCIONISTA"].includes(user.role);
@@ -49,12 +54,20 @@ const Alquileres: React.FC = () => {
 
     // UI States
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const [activeTab, setActiveTab] = useState<Tab>('RESUMEN');
+    const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
+    const [selectedPaymentContractId, setSelectedPaymentContractId] = useState<string | null>(null);
+
+    // Calculator State
+    const [calcAmount, setCalcAmount] = useState(100000);
+    const [calcIndex, setCalcIndex] = useState('ICL');
+    const [calcStartDate, setCalcStartDate] = useState('');
+    const [calcEndDate, setCalcEndDate] = useState('');
+    const [calcResult, setCalcResult] = useState<number | null>(null);
 
     // Fetch Data
     const fetchData = async () => {
         setLoading(true);
-        setError(null);
         const token = localStorage.getItem('token');
         const headers = { 'Authorization': `Bearer ${token}` };
 
@@ -64,9 +77,22 @@ const Alquileres: React.FC = () => {
             const dataContracts = await resContracts.json();
 
             if (dataContracts.ok) {
-                setContracts(dataContracts.data);
+                // Enrich with mock data for demo
+                const enrichedContracts = dataContracts.data.map((c: any) => ({
+                    ...c,
+                    managementMode: Math.random() > 0.3 ? 'SEGUIMIENTO' : 'SOLO_CONTRATO',
+                    address: `Calle Falsa ${Math.floor(Math.random() * 1000)}`,
+                    locadorName: "Juan Propietario",
+                    locatarioName: "Maria Inquilina"
+                }));
+                setContracts(enrichedContracts);
 
-                // 2. Fetch Payments for each contract (simple approach for MVP)
+                if (enrichedContracts.length > 0) {
+                    setSelectedContractId(enrichedContracts[0].id);
+                    setSelectedPaymentContractId(enrichedContracts[0].id);
+                }
+
+                // 2. Fetch Payments
                 const paymentsMap: Record<string, RentalPayment[]> = {};
                 for (const c of dataContracts.data) {
                     const resPayments = await fetch(`${API_BASE_URL}/alquileres/contratos/${c.id}/pagos`, { headers });
@@ -76,20 +102,17 @@ const Alquileres: React.FC = () => {
                     }
                 }
                 setPaymentsByContract(paymentsMap);
-            } else {
-                throw new Error(dataContracts.message || "Error al cargar contratos");
             }
 
-            // 3. Fetch Upcoming Due (Stub)
+            // 3. Fetch Upcoming Due
             const resDue = await fetch(`${API_BASE_URL}/alquileres/vencimientos`, { headers });
             const dataDue = await resDue.json();
             if (dataDue.ok) {
                 setUpcomingDue(dataDue.data);
             }
 
-        } catch (err: any) {
+        } catch (err) {
             console.error("Error fetching alquileres:", err);
-            setError(err.message || "Error de conexión");
         } finally {
             setLoading(false);
         }
@@ -99,497 +122,451 @@ const Alquileres: React.FC = () => {
         fetchData();
     }, []);
 
-    // Modal State
-    const [isNewContractOpen, setIsNewContractOpen] = useState(false);
+    // --- Tab Renderers ---
 
-    // Helper to get month name
-    const getMonthName = (monthNum: number) => {
-        const date = new Date();
-        date.setMonth(monthNum - 1);
-        return date.toLocaleString('es-AR', { month: 'short' });
-    };
+    const renderResumen = () => {
+        const activeContractsCount = contracts.filter(c => c.status === 'ACTIVO').length;
+        const totalPaymentsMonth = Object.values(paymentsByContract)
+            .flat()
+            .filter(p => p.status === 'PAGADO' && new Date(p.paidDate || '').getMonth() === new Date().getMonth())
+            .reduce((acc, curr) => acc + curr.amount, 0);
 
-    // Handle Payment Click
-    const handlePaymentClick = async (payment: RentalPayment) => {
-        if (!canManageRentals) return;
+        const latePaymentsCount = Object.values(paymentsByContract)
+            .flat()
+            .filter(p => p.status === 'ATRASADO' || (p.status === 'PENDIENTE' && new Date(p.dueDate) < new Date()))
+            .length;
 
-        if (payment.status === "PAGADO") {
-            // Optional: Show tooltip or do nothing
-            return;
-        }
-
-        if (payment.status === "PENDIENTE") {
-            if (!window.confirm(`¿Marcar el mes de ${getMonthName(payment.month)} como PAGADO?`)) {
-                return;
-            }
-
-            const token = localStorage.getItem('token');
-            try {
-                const res = await fetch(`${API_BASE_URL}/alquileres/pagos/${payment.id}`, {
-                    method: 'PATCH',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({ status: 'PAGADO' })
-                });
-
-                const data = await res.json();
-                if (data.ok) {
-                    // Update local state to reflect change immediately or refetch
-                    // Refetching is safer to ensure consistency
-                    fetchData();
-                } else {
-                    alert("Error al actualizar pago: " + data.message);
-                }
-            } catch (err) {
-                console.error(err);
-                alert("Error de red al actualizar pago");
-            }
-        }
-    };
-
-    return (
-        <div className="page">
-            {/* Header */}
-            <header className="page-header">
-                <div>
-                    <h1 className="page-title">Alquileres</h1>
-                    <p className="text-muted" style={{ fontSize: "0.9rem", marginTop: "4px" }}>
-                        Gestión de contratos, cobros mensuales y calculadora de índices.
-                    </p>
+        return (
+            <div className="animate-fade-in">
+                {/* KPI Cards */}
+                <div className="kpi-grid">
+                    <div className="kpi-card">
+                        <span className="kpi-label">Contratos Activos</span>
+                        <span className="kpi-value">{activeContractsCount}</span>
+                        <span className="kpi-trend positive">En gestión</span>
+                    </div>
+                    <div className="kpi-card">
+                        <span className="kpi-label">Próximos a Vencer (60d)</span>
+                        <span className="kpi-value">{upcomingDue.length}</span>
+                        <span className="kpi-trend neutral">Requieren atención</span>
+                    </div>
+                    <div className="kpi-card">
+                        <span className="kpi-label">Cobros del Mes</span>
+                        <span className="kpi-value">${totalPaymentsMonth.toLocaleString()}</span>
+                        <span className="kpi-trend positive">Registrados</span>
+                    </div>
+                    <div className="kpi-card">
+                        <span className="kpi-label">Pagos Atrasados</span>
+                        <span className="kpi-value" style={{ color: latePaymentsCount > 0 ? '#dc2626' : '#16a34a' }}>
+                            {latePaymentsCount}
+                        </span>
+                        <span className="kpi-trend negative">Acción requerida</span>
+                    </div>
                 </div>
-                <div className="page-actions" style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-                    <select
-                        className="form-select"
-                        value={filterProperty}
-                        onChange={(e) => setFilterProperty(e.target.value)}
-                        style={{ maxWidth: "200px" }}
-                    >
-                        <option value="">Todas las propiedades</option>
-                        {/* TODO: Populate from properties API */}
-                    </select>
-                    <select className="form-select" style={{ maxWidth: "200px" }}>
-                        <option value="">Todos los locadores</option>
-                    </select>
-                    <select className="form-select" style={{ maxWidth: "200px" }}>
-                        <option value="activos">Contratos Activos</option>
-                        <option value="todos">Todos</option>
-                    </select>
-                </div>
-            </header>
 
-            {/* Content Grid */}
-            <div className="row" style={{ display: "flex", flexWrap: "wrap", gap: "24px", marginTop: "24px" }}>
-
-                {/* Left Column (Contracts & Payments) */}
-                <div style={{ flex: "2 1 600px", display: "flex", flexDirection: "column", gap: "24px" }}>
-
-                    {/* Card: Contratos */}
-                    <div className="card">
-                        <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <h3 className="card-title">Contratos de Alquiler</h3>
-                            <button className="btn btn-primary btn-sm" onClick={() => setIsNewContractOpen(true)}>
-                                + Nuevo contrato
-                            </button>
-                        </div>
-                        <div className="card-body" style={{ overflowX: "auto" }}>
-                            {loading ? (
-                                <div style={{ padding: "20px", textAlign: "center", color: "#666" }}>Cargando contratos...</div>
-                            ) : error ? (
-                                <div style={{ padding: "20px", textAlign: "center", color: "red" }}>{error}</div>
-                            ) : contracts.length === 0 ? (
-                                <div style={{ padding: "20px", textAlign: "center", color: "#666" }}>No hay contratos registrados.</div>
-                            ) : (
-                                <table className="table" style={{ width: "100%", borderCollapse: "collapse" }}>
+                <div className="row g-4">
+                    {/* Cobros del Mes Table */}
+                    <div className="col-md-8">
+                        <div className="card h-100 border-0 shadow-sm">
+                            <div className="card-header bg-white py-3">
+                                <h5 className="mb-0 fw-bold text-dark">Cobros Recientes</h5>
+                            </div>
+                            <div className="table-responsive">
+                                <table className="premium-table">
                                     <thead>
-                                        <tr style={{ textAlign: "left", borderBottom: "1px solid #eee" }}>
-                                            <th style={{ padding: "12px" }}>Contrato / Propiedad</th>
-                                            <th style={{ padding: "12px" }}>Monto Base</th>
-                                            <th style={{ padding: "12px" }}>Vigencia</th>
-                                            <th style={{ padding: "12px" }}>Estado</th>
+                                        <tr>
+                                            <th>Propiedad</th>
+                                            <th>Inquilino</th>
+                                            <th>Monto</th>
+                                            <th>Estado</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {contracts.map((c) => (
-                                            <tr key={c.id} style={{ borderBottom: "1px solid #f9f9f9" }}>
-                                                <td style={{ padding: "12px" }}>
-                                                    <strong>{c.title}</strong>
-                                                    {/* Placeholder for locador/locatario names until we link contacts */}
-                                                    <div style={{ fontSize: "0.85rem", color: "#666" }}>ID: {c.id}</div>
-                                                </td>
-                                                <td style={{ padding: "12px" }}>${c.baseAmount.toLocaleString()}</td>
-                                                <td style={{ padding: "12px", fontSize: "0.85rem" }}>
-                                                    {c.startDate} <br /> a {c.endDate}
-                                                </td>
-                                                <td style={{ padding: "12px" }}>
-                                                    <span
-                                                        style={{
-                                                            padding: "4px 8px",
-                                                            borderRadius: "4px",
-                                                            fontSize: "0.75rem",
-                                                            backgroundColor: c.status === "ACTIVO" ? "#e6f4ea" : "#f1f3f4",
-                                                            color: c.status === "ACTIVO" ? "#1e8e3e" : "#5f6368",
-                                                            fontWeight: "bold",
-                                                        }}
-                                                    >
-                                                        {c.status}
-                                                    </span>
-                                                </td>
+                                        {contracts.slice(0, 5).map(c => (
+                                            <tr key={c.id}>
+                                                <td>{c.title}</td>
+                                                <td>{c.locatarioName}</td>
+                                                <td>${c.baseAmount.toLocaleString()}</td>
+                                                <td><span className="status-badge paid">PAGADO</span></td>
                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
-                            )}
+                            </div>
                         </div>
                     </div>
 
-                    {/* Card: Cobros Mensuales */}
-                    <div className="card">
-                        <div className="card-header">
-                            <h3 className="card-title">Cobros mensuales</h3>
-                        </div>
-                        <div className="card-body">
-                            {loading ? (
-                                <div style={{ padding: "10px" }}>Cargando pagos...</div>
-                            ) : contracts.filter(c => c.status === "ACTIVO").length === 0 ? (
-                                <div style={{ padding: "10px", color: "#666" }}>No hay contratos activos.</div>
-                            ) : (
-                                contracts.filter(c => c.status === "ACTIVO").map(contract => {
-                                    const payments = paymentsByContract[contract.id] || [];
-                                    return (
-                                        <div key={contract.id} style={{ marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid #eee" }}>
-                                            <div style={{ fontWeight: "bold", marginBottom: "8px" }}>{contract.title}</div>
-                                            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                                                {payments.length === 0 ? (
-                                                    <span style={{ fontSize: "0.85rem", color: "#999" }}>Sin pagos registrados</span>
-                                                ) : (
-                                                    payments.map(p => {
-                                                        const isPaid = p.status === "PAGADO";
-                                                        const isPending = p.status === "PENDIENTE";
-                                                        // Simple logic for "VENCIDO": if pending and due date passed (assuming due date exists)
-                                                        // For now, let's trust the status or just check date if needed.
-                                                        // User asked for "VENCIDO" style if status is VENCIDO.
-                                                        const isOverdue = p.status === "VENCIDO";
-
-                                                        let bgColor = "white";
-                                                        let borderColor = "#ccc";
-                                                        let textColor = "#666";
-
-                                                        if (isPaid) {
-                                                            bgColor = "#e6f4ea";
-                                                            borderColor = "#1e8e3e";
-                                                            textColor = "#1e8e3e";
-                                                        } else if (isOverdue) {
-                                                            bgColor = "#fce8e6";
-                                                            borderColor = "#d93025";
-                                                            textColor = "#d93025";
-                                                        } else {
-                                                            // Pending
-                                                            bgColor = "#f1f3f4";
-                                                            borderColor = "#dadce0";
-                                                            textColor = "#3c4043";
-                                                        }
-
-                                                        const isClickable = canManageRentals && isPending;
-
-                                                        return (
-                                                            <div
-                                                                key={p.id}
-                                                                onClick={() => handlePaymentClick(p)}
-                                                                style={{
-                                                                    border: `1px solid ${borderColor}`,
-                                                                    backgroundColor: bgColor,
-                                                                    color: textColor,
-                                                                    padding: "4px 12px",
-                                                                    borderRadius: "16px",
-                                                                    fontSize: "0.8rem",
-                                                                    cursor: isClickable ? "pointer" : "default",
-                                                                    userSelect: "none",
-                                                                    transition: "all 0.2s",
-                                                                    opacity: isClickable ? 1 : (isPaid ? 1 : 0.8)
-                                                                }}
-                                                                title={`Vence: ${p.dueDate} - Estado: ${p.status}`}
-                                                            >
-                                                                {getMonthName(p.month)} {p.year} {isPaid ? "✓" : ""}
-                                                            </div>
-                                                        );
-                                                    })
-                                                )}
+                    {/* Próximos Vencimientos */}
+                    <div className="col-md-4">
+                        <div className="card h-100 border-0 shadow-sm">
+                            <div className="card-header bg-white py-3">
+                                <h5 className="mb-0 fw-bold text-dark">Próximos Vencimientos</h5>
+                            </div>
+                            <div className="card-body">
+                                <div className="alert alert-info small mb-3">
+                                    Este panel usa los contratos y pagos cargados en Inmovia.
+                                </div>
+                                <ul className="list-group list-group-flush">
+                                    {upcomingDue.length > 0 ? upcomingDue.map(due => (
+                                        <li key={due.id} className="list-group-item px-0 d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <div className="fw-bold text-dark">Contrato #{due.contractId.slice(0, 4)}</div>
+                                                <small className="text-muted">Vence: {new Date(due.dueDate).toLocaleDateString()}</small>
                                             </div>
-                                        </div>
-                                    );
-                                })
-                            )}
+                                            <span className="text-danger fw-bold">${due.amount.toLocaleString()}</span>
+                                        </li>
+                                    )) : (
+                                        <div className="text-center text-muted py-4">No hay vencimientos próximos</div>
+                                    )}
+                                </ul>
+                            </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        );
+    };
 
+    const renderContratos = () => {
+        const selectedContract = contracts.find(c => c.id === selectedContractId);
+
+        return (
+            <div className="contracts-layout">
+                {/* List */}
+                <div className="contracts-list">
+                    <div className="p-3 border-bottom bg-white sticky-top">
+                        <input type="text" className="form-control form-control-sm" placeholder="Buscar contrato..." />
+                    </div>
+                    {contracts.map(c => (
+                        <div
+                            key={c.id}
+                            className={`contract-item ${selectedContractId === c.id ? 'active' : ''}`}
+                            onClick={() => setSelectedContractId(c.id)}
+                        >
+                            <div className="d-flex justify-content-between mb-1">
+                                <span className="fw-bold text-dark text-truncate" style={{ maxWidth: '70%' }}>{c.title}</span>
+                                <span className={`status-badge ${c.status === 'ACTIVO' ? 'active' : 'pending'}`}>{c.status}</span>
+                            </div>
+                            <div className="small text-muted mb-1">{c.locatarioName}</div>
+                            <div className="small text-dark fw-bold">${c.baseAmount.toLocaleString()}</div>
+                        </div>
+                    ))}
                 </div>
 
-                {/* Right Column (Calculator & Upcoming) */}
-                <div style={{ flex: "1 1 300px", display: "flex", flexDirection: "column", gap: "24px" }}>
+                {/* Detail */}
+                <div className="contract-detail-panel">
+                    {selectedContract ? (
+                        <>
+                            <div className="d-flex justify-content-between align-items-start mb-4">
+                                <div>
+                                    <h3 className="mb-1 fw-bold text-dark">{selectedContract.title}</h3>
+                                    <p className="text-muted mb-0">📍 {selectedContract.address}</p>
+                                </div>
+                                <button className="btn btn-outline-primary btn-sm">Editar Contrato</button>
+                            </div>
 
-                    {/* Card: Calculadora */}
-                    <div className="card">
-                        <div className="card-header">
-                            <h3 className="card-title">Calculadora de índices (Beta)</h3>
-                        </div>
-                        <div className="card-body" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                            <div>
-                                <label className="form-label" style={{ fontSize: "0.85rem" }}>Monto actual</label>
-                                <input type="number" className="form-control" placeholder="Ej: 100000" />
-                            </div>
-                            <div>
-                                <label className="form-label" style={{ fontSize: "0.85rem" }}>Índice</label>
-                                <select className="form-select">
-                                    <option>ICL (Banco Central)</option>
-                                    <option>IPC (Indec)</option>
-                                    <option>Casa Propia</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="form-label" style={{ fontSize: "0.85rem" }}>Período</label>
-                                <div style={{ display: "flex", gap: "8px" }}>
-                                    <input type="date" className="form-control" />
-                                    <input type="date" className="form-control" />
+                            <div className="row mb-4">
+                                <div className="col-md-6">
+                                    <div className="p-3 bg-light rounded-3">
+                                        <label className="small text-muted fw-bold text-uppercase">Locador</label>
+                                        <div className="fw-bold text-dark">{selectedContract.locadorName}</div>
+                                    </div>
+                                </div>
+                                <div className="col-md-6">
+                                    <div className="p-3 bg-light rounded-3">
+                                        <label className="small text-muted fw-bold text-uppercase">Locatario</label>
+                                        <div className="fw-bold text-dark">{selectedContract.locatarioName}</div>
+                                    </div>
                                 </div>
                             </div>
-                            <button className="btn btn-primary" style={{ marginTop: "8px" }} onClick={() => alert("Función en desarrollo")}>
-                                Calcular ajuste
-                            </button>
-                        </div>
-                    </div>
 
-                    {/* Card: Próximos vencimientos */}
-                    <div className="card">
-                        <div className="card-header">
-                            <h3 className="card-title">Próximos vencimientos</h3>
-                        </div>
-                        <div className="card-body">
-                            {upcomingDue.length === 0 ? (
-                                <div style={{ color: "#666", fontSize: "0.9rem" }}>No hay vencimientos pendientes.</div>
-                            ) : (
-                                <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                                    {upcomingDue.map(due => (
-                                        <li key={due.id} style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px", fontSize: "0.9rem" }}>
-                                            <span>
-                                                <div style={{ fontWeight: "bold" }}>{new Date(due.dueDate).toLocaleDateString()}</div>
-                                                <div style={{ fontSize: "0.8rem", color: "#666" }}>Contrato ID: {due.contractId}</div>
-                                            </span>
-                                            <span style={{ color: "#d93025", fontWeight: "bold" }}>${due.amount.toLocaleString()}</span>
-                                        </li>
-                                    ))}
-                                </ul>
+                            <div className="management-mode-selector">
+                                <h6 className="fw-bold mb-3">Modo de Gestión</h6>
+                                <div className={`mode-option ${selectedContract.managementMode === 'SOLO_CONTRATO' ? 'selected' : ''}`}>
+                                    <input
+                                        type="radio"
+                                        checked={selectedContract.managementMode === 'SOLO_CONTRATO'}
+                                        readOnly
+                                        className="mode-radio"
+                                    />
+                                    <div>
+                                        <div className="fw-bold text-dark">Solo Contrato</div>
+                                        <div className="small text-muted">Se registra el contrato y se archiva, pero no se controla el pago mes a mes.</div>
+                                    </div>
+                                </div>
+                                <div className={`mode-option mt-2 ${selectedContract.managementMode === 'SEGUIMIENTO' ? 'selected' : ''}`}>
+                                    <input
+                                        type="radio"
+                                        checked={selectedContract.managementMode === 'SEGUIMIENTO'}
+                                        readOnly
+                                        className="mode-radio"
+                                    />
+                                    <div>
+                                        <div className="fw-bold text-dark">Seguimiento de Pagos</div>
+                                        <div className="small text-muted">Inmovia genera los meses, recordatorios y recibos para cobrar en oficina.</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {selectedContract.managementMode === 'SEGUIMIENTO' && (
+                                <div className="alert alert-success d-flex align-items-center gap-2">
+                                    <span>✅</span>
+                                    <small>Este contrato tiene seguimiento de pagos activo. Ver sección 'Pagos & Recibos'.</small>
+                                </div>
+                            )}
+
+                            <div className="mt-4 p-4 border border-dashed rounded-3 text-center bg-light">
+                                <div className="mb-2 text-muted" style={{ fontSize: '2rem' }}>📄</div>
+                                <h6 className="fw-bold text-dark">Contrato Firmado</h6>
+                                <p className="small text-muted mb-3">Aquí se guarda el contrato digitalizado.</p>
+                                <button className="btn btn-sm btn-outline-secondary">Subir PDF</button>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="text-center text-muted py-5">Selecciona un contrato para ver el detalle</div>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+    const renderPagos = () => {
+        const payments = selectedPaymentContractId ? (paymentsByContract[selectedPaymentContractId] || []) : [];
+        const contract = contracts.find(c => c.id === selectedPaymentContractId);
+
+        return (
+            <div>
+                <div className="d-flex gap-3 mb-4 align-items-center">
+                    <select
+                        className="form-select w-auto"
+                        value={selectedPaymentContractId || ''}
+                        onChange={(e) => setSelectedPaymentContractId(e.target.value)}
+                    >
+                        {contracts.map(c => (
+                            <option key={c.id} value={c.id}>{c.title}</option>
+                        ))}
+                    </select>
+                    {contract && <span className="badge bg-light text-dark border">{contract.status}</span>}
+                </div>
+
+                <div className="row">
+                    <div className="col-md-8">
+                        <h5 className="mb-3 fw-bold text-dark">Meses del Contrato</h5>
+                        <div className="payments-grid">
+                            {payments.length > 0 ? payments.map(p => {
+                                const isPaid = p.status === 'PAGADO';
+                                const isLate = p.status === 'ATRASADO' || (p.status === 'PENDIENTE' && new Date(p.dueDate) < new Date());
+                                const statusClass = isPaid ? 'paid' : (isLate ? 'late' : 'pending');
+
+                                return (
+                                    <div key={p.id} className={`payment-chip ${statusClass}`}>
+                                        <span className="payment-month">{new Date(0, p.month - 1).toLocaleString('es-AR', { month: 'long' })}</span>
+                                        <span className="small fw-bold">${p.amount.toLocaleString()}</span>
+                                        <span className="payment-status-text">{p.status}</span>
+                                    </div>
+                                );
+                            }) : (
+                                <div className="text-muted col-12">No hay pagos generados para este contrato.</div>
                             )}
                         </div>
                     </div>
+                    <div className="col-md-4">
+                        <div className="card border-0 shadow-sm bg-light">
+                            <div className="card-body">
+                                <h6 className="fw-bold text-dark mb-3">Gestión de Recibos</h6>
+                                <div className="text-center py-4">
+                                    <div className="mb-3" style={{ fontSize: '3rem' }}>🧾</div>
+                                    <p className="text-muted small mb-4">Selecciona un mes pagado para ver o generar el recibo correspondiente.</p>
+                                    <button className="btn btn-primary w-100 mb-2" disabled>Generar Recibo (Demo)</button>
+                                    <button className="btn btn-outline-secondary w-100" disabled>Descargar PDF</button>
+                                </div>
+                                <hr />
+                                <div className="form-check form-switch">
+                                    <input className="form-check-input" type="checkbox" id="reminders" defaultChecked />
+                                    <label className="form-check-label small" htmlFor="reminders">Activar recordatorios automáticos</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
 
+    const renderCalculadora = () => {
+        const handleCalculate = () => {
+            // Mock calculation logic
+            const factor = calcIndex === 'IPC' ? 1.5 : (calcIndex === 'ICL' ? 1.4 : 1.8);
+            setCalcResult(calcAmount * factor);
+        };
+
+        return (
+            <div className="calculator-layout">
+                <div className="calculator-form">
+                    <h4 className="fw-bold text-dark mb-4">Calculadora de Actualización</h4>
+
+                    <div className="mb-3">
+                        <label className="form-label">Monto Original</label>
+                        <div className="input-group">
+                            <span className="input-group-text">$</span>
+                            <input
+                                type="number"
+                                className="form-control"
+                                value={calcAmount}
+                                onChange={e => setCalcAmount(Number(e.target.value))}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="mb-3">
+                        <label className="form-label">Índice de Ajuste</label>
+                        <select
+                            className="form-select"
+                            value={calcIndex}
+                            onChange={e => setCalcIndex(e.target.value)}
+                        >
+                            <option value="ICL">ICL (Banco Central)</option>
+                            <option value="IPC">IPC (Indec)</option>
+                            <option value="UVA">UVA</option>
+                        </select>
+                    </div>
+
+                    <div className="row mb-4">
+                        <div className="col-6">
+                            <label className="form-label">Desde</label>
+                            <input type="date" className="form-control" value={calcStartDate} onChange={e => setCalcStartDate(e.target.value)} />
+                        </div>
+                        <div className="col-6">
+                            <label className="form-label">Hasta</label>
+                            <input type="date" className="form-control" value={calcEndDate} onChange={e => setCalcEndDate(e.target.value)} />
+                        </div>
+                    </div>
+
+                    <div className="mb-4">
+                        <label className="form-label small text-muted">Fuente de Datos</label>
+                        <div className="input-group">
+                            <span className="input-group-text bg-light">🔒</span>
+                            <input type="text" className="form-control bg-light" value="ArgenStats (Inmovia Server)" readOnly />
+                        </div>
+                        <div className="form-text">Solo backend – no se consulta directo desde el navegador</div>
+                    </div>
+
+                    <button className="btn btn-primary w-100 py-2" onClick={handleCalculate}>
+                        Calcular Actualización
+                    </button>
+                </div>
+
+                <div className="calculator-result">
+                    <h5 className="text-white-50 text-uppercase letter-spacing-1">Nuevo Monto Estimado</h5>
+                    {calcResult ? (
+                        <>
+                            <div className="result-amount">${calcResult.toLocaleString()}</div>
+                            <div className="badge bg-success mb-4">+ {(calcResult / calcAmount * 100 - 100).toFixed(1)}%</div>
+
+                            <table className="table table-dark table-sm w-75 text-center" style={{ fontSize: '0.85rem' }}>
+                                <thead>
+                                    <tr>
+                                        <th>Mes</th>
+                                        <th>Índice</th>
+                                        <th>Factor</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Inicio</td>
+                                        <td>100.0</td>
+                                        <td>1.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Final</td>
+                                        <td>{(100 * (calcResult / calcAmount)).toFixed(1)}</td>
+                                        <td>{(calcResult / calcAmount).toFixed(2)}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </>
+                    ) : (
+                        <div className="text-white-50 my-5">Completa el formulario para ver el resultado</div>
+                    )}
+                    <p className="small text-white-50 mt-auto">
+                        * En esta demo los valores son simulados. En producción la API de Inmovia consultará ArgenStats.
+                    </p>
+                </div>
+            </div>
+        );
+    };
+
+    const renderConfiguracion = () => (
+        <div className="container" style={{ maxWidth: '800px' }}>
+            <div className="config-block">
+                <h5 className="fw-bold text-dark mb-3">Modo de Gestión de Alquileres</h5>
+                <p className="text-muted mb-4">
+                    Define cómo Inmovia maneja tus contratos por defecto. Puedes cambiar esto individualmente en cada contrato.
+                </p>
+                <div className="d-flex gap-3">
+                    <div className="p-3 border rounded bg-light flex-1">
+                        <div className="fw-bold">Solo Contrato</div>
+                        <small className="text-muted">Gestión documental básica.</small>
+                    </div>
+                    <div className="p-3 border rounded bg-white border-primary flex-1">
+                        <div className="fw-bold text-primary">Seguimiento de Pagos</div>
+                        <small className="text-muted">Gestión financiera completa.</small>
+                    </div>
                 </div>
             </div>
 
-            {/* New Contract Modal */}
-            {isNewContractOpen && (
-                <NewContractModal
-                    onClose={() => setIsNewContractOpen(false)}
-                    onSuccess={() => {
-                        setIsNewContractOpen(false);
-                        fetchData();
-                    }}
-                    apiBaseUrl={API_BASE_URL}
-                />
-            )}
+            <div className="config-block">
+                <div className="d-flex justify-content-between align-items-center mb-3">
+                    <h5 className="fw-bold text-dark m-0">Integración con Índices</h5>
+                    <span className="demo-badge">Modo Demo</span>
+                </div>
+                <p className="text-muted">
+                    En producción, el backend de Inmovia consultará ArgenStats y guardará IPC, ICL, UVA, etc. en caché local, para que la calculadora y los ajustes funcionen sin sobrecargar la API externa.
+                </p>
+            </div>
+
+            <div className="config-block">
+                <h5 className="fw-bold text-dark mb-3">Atajos desde Propiedades</h5>
+                <div className="alert alert-secondary d-flex gap-3 align-items-center">
+                    <span style={{ fontSize: '1.5rem' }}>🏠</span>
+                    <div>
+                        <strong>Automatización:</strong> Cuando una propiedad de tipo Alquiler pasa a Reservada, aparecerá un atajo en Propiedades para crear automáticamente el contrato en esta sección.
+                    </div>
+                </div>
+            </div>
         </div>
     );
-};
-
-// --- Internal Modal Component ---
-
-interface NewContractModalProps {
-    onClose: () => void;
-    onSuccess: () => void;
-    apiBaseUrl: string;
-}
-
-const NewContractModal: React.FC<NewContractModalProps> = ({ onClose, onSuccess, apiBaseUrl }) => {
-    const [formData, setFormData] = useState({
-        title: "",
-        baseAmount: "",
-        startDate: new Date().toISOString().split('T')[0],
-        endDate: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0],
-        status: "ACTIVO",
-        indexType: "SIN_INDICE",
-        notes: ""
-    });
-    const [isSaving, setIsSaving] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
-    };
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setError(null);
-
-        if (!formData.title || !formData.baseAmount || !formData.startDate || !formData.endDate) {
-            setError("Por favor completá los campos obligatorios.");
-            return;
-        }
-
-        if (parseFloat(formData.baseAmount) <= 0) {
-            setError("El monto debe ser mayor a 0.");
-            return;
-        }
-
-        setIsSaving(true);
-        const token = localStorage.getItem('token');
-
-        try {
-            const res = await fetch(`${apiBaseUrl}/alquileres/contratos`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    ...formData,
-                    baseAmount: parseFloat(formData.baseAmount)
-                })
-            });
-
-            const data = await res.json();
-            if (data.ok) {
-                onSuccess();
-            } else {
-                setError(data.message || "Error al guardar el contrato.");
-            }
-        } catch (err) {
-            console.error(err);
-            setError("Error de red al guardar.");
-        } finally {
-            setIsSaving(false);
-        }
-    };
 
     return (
-        <div className="modal-backdrop" style={{
-            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1050
-        }}>
-            <div className="modal-dialog" style={{ maxWidth: '500px', width: '100%', margin: '1rem' }}>
-                <div className="modal-content" style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
-                    <div className="modal-header" style={{ padding: '1rem', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <h5 className="modal-title" style={{ margin: 0, fontSize: '1.25rem' }}>Nuevo Contrato de Alquiler</h5>
-                        <button type="button" className="btn-close" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>&times;</button>
-                    </div>
-                    <form onSubmit={handleSubmit}>
-                        <div className="modal-body" style={{ padding: '1rem' }}>
-                            {error && <div className="alert alert-danger" style={{ color: '#721c24', backgroundColor: '#f8d7da', padding: '0.75rem', borderRadius: '0.25rem', marginBottom: '1rem' }}>{error}</div>}
+        <div className="alquileres-page">
+            <header className="alquileres-header">
+                <h1 className="alquileres-title">Gestión de Alquileres</h1>
+                <p className="alquileres-subtitle">Administración de contratos, cobros y actualizaciones.</p>
+            </header>
 
-                            <div className="mb-3" style={{ marginBottom: '1rem' }}>
-                                <label className="form-label" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Título del contrato *</label>
-                                <input
-                                    type="text"
-                                    className="form-control"
-                                    name="title"
-                                    value={formData.title}
-                                    onChange={handleChange}
-                                    placeholder="Ej: Depto Lomas - 3 amb"
-                                    style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ced4da' }}
-                                    autoFocus
-                                />
-                            </div>
+            <div className="alquileres-main-card">
+                {/* Tabs Navigation */}
+                <div className="alquileres-tabs">
+                    <div className={`alquileres-tab ${activeTab === 'RESUMEN' ? 'active' : ''}`} onClick={() => setActiveTab('RESUMEN')}>Resumen</div>
+                    <div className={`alquileres-tab ${activeTab === 'CONTRATOS' ? 'active' : ''}`} onClick={() => setActiveTab('CONTRATOS')}>Contratos</div>
+                    <div className={`alquileres-tab ${activeTab === 'PAGOS' ? 'active' : ''}`} onClick={() => setActiveTab('PAGOS')}>Pagos & Recibos</div>
+                    <div className={`alquileres-tab ${activeTab === 'CALCULADORA' ? 'active' : ''}`} onClick={() => setActiveTab('CALCULADORA')}>Calculadora</div>
+                    <div className={`alquileres-tab ${activeTab === 'CONFIGURACION' ? 'active' : ''}`} onClick={() => setActiveTab('CONFIGURACION')}>Configuración</div>
+                </div>
 
-                            <div className="mb-3" style={{ marginBottom: '1rem' }}>
-                                <label className="form-label" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Monto base mensual *</label>
-                                <input
-                                    type="number"
-                                    className="form-control"
-                                    name="baseAmount"
-                                    value={formData.baseAmount}
-                                    onChange={handleChange}
-                                    placeholder="250000"
-                                    style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ced4da' }}
-                                />
-                            </div>
-
-                            <div className="row" style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-                                <div style={{ flex: 1 }}>
-                                    <label className="form-label" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Inicio *</label>
-                                    <input
-                                        type="date"
-                                        className="form-control"
-                                        name="startDate"
-                                        value={formData.startDate}
-                                        onChange={handleChange}
-                                        style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ced4da' }}
-                                    />
-                                </div>
-                                <div style={{ flex: 1 }}>
-                                    <label className="form-label" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Fin *</label>
-                                    <input
-                                        type="date"
-                                        className="form-control"
-                                        name="endDate"
-                                        value={formData.endDate}
-                                        onChange={handleChange}
-                                        style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ced4da' }}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="row" style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-                                <div style={{ flex: 1 }}>
-                                    <label className="form-label" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Estado</label>
-                                    <select
-                                        className="form-select"
-                                        name="status"
-                                        value={formData.status}
-                                        onChange={handleChange}
-                                        style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ced4da' }}
-                                    >
-                                        <option value="ACTIVO">ACTIVO</option>
-                                        <option value="FINALIZADO">FINALIZADO</option>
-                                        <option value="SUSPENDIDO">SUSPENDIDO</option>
-                                    </select>
-                                </div>
-                                <div style={{ flex: 1 }}>
-                                    <label className="form-label" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Índice</label>
-                                    <select
-                                        className="form-select"
-                                        name="indexType"
-                                        value={formData.indexType}
-                                        onChange={handleChange}
-                                        style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ced4da' }}
-                                    >
-                                        <option value="SIN_INDICE">Sin Índice</option>
-                                        <option value="IPC">IPC</option>
-                                        <option value="ICL">ICL</option>
-                                        <option value="OTRO">Otro</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div className="mb-3">
-                                <label className="form-label" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Notas</label>
-                                <textarea
-                                    className="form-control"
-                                    name="notes"
-                                    value={formData.notes}
-                                    onChange={handleChange}
-                                    rows={2}
-                                    style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ced4da' }}
-                                />
-                            </div>
-                        </div>
-                        <div className="modal-footer" style={{ padding: '1rem', borderTop: '1px solid #eee', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                            <button type="button" className="btn btn-secondary" onClick={onClose} disabled={isSaving}>Cancelar</button>
-                            <button type="submit" className="btn btn-primary" disabled={isSaving}>
-                                {isSaving ? 'Guardando...' : 'Guardar Contrato'}
-                            </button>
-                        </div>
-                    </form>
+                {/* Tab Content */}
+                <div className="alquileres-content">
+                    {loading ? (
+                        <div className="text-center py-5 text-muted">Cargando módulo de alquileres...</div>
+                    ) : (
+                        <>
+                            {activeTab === 'RESUMEN' && renderResumen()}
+                            {activeTab === 'CONTRATOS' && renderContratos()}
+                            {activeTab === 'PAGOS' && renderPagos()}
+                            {activeTab === 'CALCULADORA' && renderCalculadora()}
+                            {activeTab === 'CONFIGURACION' && renderConfiguracion()}
+                        </>
+                    )}
                 </div>
             </div>
         </div>

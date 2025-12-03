@@ -1,0 +1,356 @@
+/* apps/web/src/pages/Alquileres.css */
+
+.alquileres-page {
+    padding: 1.5rem;
+    background-color: #f8fafc;
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #334155;
+}
+
+/* --- Header --- */
+.alquileres-header {
+    margin-bottom: 2rem;
+}
+
+.alquileres-title {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0;
+}
+
+.alquileres-subtitle {
+    color: #64748b;
+    font-size: 0.95rem;
+    margin-top: 0.5rem;
+}
+
+/* --- Main Card & Tabs --- */
+.alquileres-main-card {
+    background: white;
+    border-radius: 1rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+    min-height: 600px;
+    display: flex;
+    flex-direction: column;
+}
+
+.alquileres-tabs {
+    display: flex;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+    padding: 0 1rem;
+}
+
+.alquileres-tab {
+    padding: 1rem 1.5rem;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    font-size: 0.95rem;
+}
+
+.alquileres-tab:hover {
+    color: #334155;
+    background: #f1f5f9;
+}
+
+.alquileres-tab.active {
+    color: #0f172a;
+    border-bottom-color: #0f172a;
+    background: white;
+}
+
+.alquileres-content {
+    padding: 2rem;
+    flex: 1;
+    overflow-y: auto;
+}
+
+/* --- KPI Cards (Resumen) --- */
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.kpi-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
+}
+
+.kpi-label {
+    font-size: 0.85rem;
+    color: #64748b;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.5rem;
+}
+
+.kpi-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.kpi-trend {
+    font-size: 0.85rem;
+    margin-top: 0.5rem;
+}
+
+.kpi-trend.positive {
+    color: #16a34a;
+}
+
+.kpi-trend.negative {
+    color: #dc2626;
+}
+
+.kpi-trend.neutral {
+    color: #64748b;
+}
+
+/* --- Tables & Lists --- */
+.premium-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.premium-table th {
+    text-align: left;
+    padding: 1rem;
+    font-weight: 600;
+    color: #64748b;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 0.9rem;
+}
+
+.premium-table td {
+    padding: 1rem;
+    border-bottom: 1px solid #f1f5f9;
+    color: #334155;
+    font-size: 0.95rem;
+}
+
+.premium-table tr:last-child td {
+    border-bottom: none;
+}
+
+.status-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: inline-block;
+}
+
+.status-badge.paid {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.status-badge.pending {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.status-badge.late {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.status-badge.active {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+/* --- Contratos Layout --- */
+.contracts-layout {
+    display: grid;
+    grid-template-columns: 350px 1fr;
+    gap: 2rem;
+    height: 600px;
+}
+
+.contracts-list {
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    overflow-y: auto;
+    background: #f8fafc;
+}
+
+.contract-item {
+    padding: 1rem;
+    border-bottom: 1px solid #e2e8f0;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: white;
+}
+
+.contract-item:hover {
+    background: #f1f5f9;
+}
+
+.contract-item.active {
+    background: #eff6ff;
+    border-left: 4px solid #3b82f6;
+}
+
+.contract-detail-panel {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    padding: 2rem;
+    overflow-y: auto;
+}
+
+/* --- Management Mode Toggle --- */
+.management-mode-selector {
+    background: #f8fafc;
+    padding: 1.5rem;
+    border-radius: 0.75rem;
+    border: 1px solid #e2e8f0;
+    margin: 1.5rem 0;
+}
+
+.mode-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1rem;
+    border: 1px solid transparent;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.mode-option:hover {
+    background: white;
+    border-color: #cbd5e1;
+}
+
+.mode-option.selected {
+    background: white;
+    border-color: #3b82f6;
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.1);
+}
+
+.mode-radio {
+    margin-top: 0.25rem;
+}
+
+/* --- Payments Grid --- */
+.payments-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.payment-chip {
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.payment-chip:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.payment-chip.paid {
+    background: #f0fdf4;
+    border-color: #bbf7d0;
+}
+
+.payment-chip.pending {
+    background: white;
+    border-color: #e2e8f0;
+}
+
+.payment-chip.late {
+    background: #fef2f2;
+    border-color: #fecaca;
+}
+
+.payment-month {
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.payment-status-text {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+}
+
+/* --- Calculator --- */
+.calculator-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+}
+
+.calculator-form {
+    background: #f8fafc;
+    padding: 2rem;
+    border-radius: 1rem;
+}
+
+.calculator-result {
+    background: #0f172a;
+    color: white;
+    padding: 2rem;
+    border-radius: 1rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+}
+
+.result-amount {
+    font-size: 3rem;
+    font-weight: 800;
+    margin: 1rem 0;
+    color: #38bdf8;
+}
+
+/* --- Config --- */
+.config-block {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.demo-badge {
+    background: #fffbeb;
+    color: #b45309;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border: 1px solid #fcd34d;
+    display: inline-block;
+    margin-bottom: 0.5rem;
+}
