@@ -121,10 +121,90 @@ const Agenda: React.FC = () => {
   // Mes mostrado en el mini calendario de la izquierda
   const [calendarMonth, setCalendarMonth] = useState<Date>(() => new Date());
 
+  const [invitations, setInvitations] = useState<any[]>([]);
+
   useEffect(() => {
     loadStatus();
     loadEvents();
+    loadInvitations();
   }, []);
+
+  async function loadInvitations() {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl("/api/agenda/invitations"), {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setInvitations(data.data || []);
+      }
+    } catch (e) {
+      console.error("Error loading invitations", e);
+    }
+  }
+
+  async function loadEvents() {
+    setLoadingEvents(true);
+    const token = localStorage.getItem('token');
+
+    let googleEvents: AgendaEvent[] = [];
+    let internalEvents: AgendaEvent[] = [];
+
+    // 1. Fetch Google Events (Optional)
+    try {
+      const resGoogle = await fetch(apiUrl("/api/calendar/events?days=7"), {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (resGoogle.ok) {
+        const data = await resGoogle.json();
+        googleEvents = (data.events || []).map((ev: any) => ({
+          id: ev.id,
+          summary: ev.summary || "Evento",
+          date: ev.date || "",
+          startTime: ev.startTime || "",
+          endTime: ev.endTime || "",
+          type: ev.type || "",
+          agent: ev.agent || "",
+          contactId: ev.contactId,
+          participants: ev.participants || [],
+          assignedUserId: ev.assignedUserId,
+          source: 'google'
+        }));
+      }
+    } catch (err) {
+      console.warn("Google Calendar events could not be loaded", err);
+    }
+
+    // 2. Fetch Internal Events (Required)
+    try {
+      const resInternal = await fetch(apiUrl("/api/agenda"), {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (resInternal.ok) {
+        const data = await resInternal.json();
+        internalEvents = (data.data || []).map((ev: any) => ({
+          id: ev.id,
+          summary: ev.summary || ev.title || "Evento",
+          date: ev.date || "",
+          startTime: ev.startTime || "",
+          endTime: ev.endTime || "",
+          type: ev.type || "reunion", // Default type if missing
+          agent: "", // Internal events might not have 'agent' field same way
+          contactId: ev.contactId,
+          participants: ev.participants || [],
+          assignedUserId: ev.assignedUserId,
+          source: 'internal'
+        }));
+      }
+    } catch (err) {
+      console.error("Internal events could not be loaded", err);
+    }
+
+    // Merge (deduplicate if necessary, but IDs should be different)
+    setEvents([...googleEvents, ...internalEvents]);
+    setLoadingEvents(false);
+  }
 
   async function loadStatus() {
     setLoadingStatus(true);
@@ -135,8 +215,6 @@ const Agenda: React.FC = () => {
       });
       if (!res.ok) throw new Error("Error de estado");
       const data = await res.json();
-
-      console.log("📡 /api/calendar/status →", data);
 
       setStatus(data.connected ? "connected" : "disconnected");
       setStatusMessage(data.message || "");
@@ -149,38 +227,6 @@ const Agenda: React.FC = () => {
     }
   }
 
-  async function loadEvents() {
-    setLoadingEvents(true);
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(apiUrl("/api/calendar/events?days=7"), {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!res.ok) throw new Error("Error al cargar eventos");
-      const data = await res.json();
-
-      console.log("📡 /api/calendar/events →", data);
-
-      const mapped: AgendaEvent[] = (data.events || []).map((ev: any) => ({
-        id: ev.id,
-        summary: ev.summary || "Evento",
-        date: ev.date || "",
-        startTime: ev.startTime || "",
-        endTime: ev.endTime || "",
-        type: ev.type || "",
-        agent: ev.agent || "",
-        contactId: ev.contactId,
-        participants: ev.participants || [],
-        assignedUserId: ev.assignedUserId
-      }));
-
-      setEvents(mapped);
-    } catch (err) {
-      console.error("Error loadEvents:", err);
-    } finally {
-      setLoadingEvents(false);
-    }
-  }
 
   function handleChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -564,6 +610,39 @@ const Agenda: React.FC = () => {
               </div>
 
               <div className="agenda-events">
+                {/* Invitations Section */}
+                {invitations.length > 0 && (
+                  <div className="agenda-invitations-section" style={{ marginBottom: '1.5rem', padding: '1rem', backgroundColor: '#f0f9ff', borderRadius: '8px', border: '1px solid #bae6fd' }}>
+                    <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1rem', color: '#0369a1' }}>📩 Invitaciones Pendientes</h3>
+                    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                      {invitations.map(inv => (
+                        <li key={inv.invitationId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem', backgroundColor: 'white', borderRadius: '6px', marginBottom: '0.5rem', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+                          <div>
+                            <div style={{ fontWeight: 600 }}>{inv.title}</div>
+                            <div style={{ fontSize: '0.8rem', color: '#666' }}>
+                              {new Date(inv.date).toLocaleDateString()} {inv.startTime} | {inv.location || 'Sin ubicación'}
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: '#888' }}>De: Usuario Inmovia</div>
+                          </div>
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <button
+                              onClick={() => handleRespondInvitation(inv.eventId, 'accepted')}
+                              style={{ border: 'none', background: '#dcfce7', color: '#166534', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', cursor: 'pointer' }}
+                            >
+                              Aceptar
+                            </button>
+                            <button
+                              onClick={() => handleRespondInvitation(inv.eventId, 'declined')}
+                              style={{ border: 'none', background: '#fee2e2', color: '#991b1b', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', cursor: 'pointer' }}
+                            >
+                              Rechazar
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 <div className="agenda-section-header">
                   <div>
                     <h2 className="agenda-section-title">Próximos 7 días</h2>

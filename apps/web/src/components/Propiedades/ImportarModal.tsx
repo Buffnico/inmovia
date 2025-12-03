@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { apiFetch } from '../../services/apiClient';
 
 interface ImportStats {
     total: number;
@@ -41,10 +42,12 @@ const ImportarModal: React.FC<ImportarModalProps> = ({ onClose, onSuccess }) => 
         formData.append('file', file);
 
         try {
-            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001/api";
-            const res = await fetch(`${API_BASE_URL}/properties/importar/remax-excel`, {
+            const res = await apiFetch('/properties/importar/remax-excel', {
                 method: 'POST',
                 body: formData,
+                // Do not set Content-Type header when sending FormData, 
+                // fetch/browser sets it automatically with boundary.
+                // apiFetch preserves this behavior as long as we don't override it in options.
             });
 
             const data = await res.json();

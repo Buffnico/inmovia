@@ -35,4 +35,13 @@ router.use('/calendar', googleCalendarRouter);
 // Auth placeholder (can be expanded later)
 router.use('/auth', (req, res) => res.json({ ok: true, module: 'auth (placeholder)' }));
 
+// Healthcheck for production
+router.get("/health", (req, res) => {
+    res.json({
+        status: "ok",
+        env: process.env.NODE_ENV || "development",
+        time: new Date().toISOString(),
+    });
+});
+
 module.exports = router;

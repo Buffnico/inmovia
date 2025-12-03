@@ -2,7 +2,8 @@ import { FormEvent, useState, Suspense, Component, ReactNode, lazy, useRef, useE
 import { Link } from "react-router-dom";
 import ivoLogo from "../assets/ivot-logo.png";
 import "../pages/IvoT.css";
-import { IvoChatService } from "../services/ivoChatService";
+import { IvoChatService, loadIvoHistory, saveIvoHistory } from "../services/ivoChatService";
+import { useAuth } from "../store/auth";
 
 // Lazy load the 3D component to isolate Three.js dependencies
 const IvoT3D = lazy(() => import("./IvoT3D"));
@@ -57,13 +58,26 @@ class ErrorBoundary extends Component<{ children: ReactNode; fallback: ReactNode
 }
 
 export default function IvoTFab() {
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<Msg[]>(INITIAL_MSGS);
+  const [messages, setMessages] = useState<Msg[]>([]); // Start empty
   const [draft, setDraft] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Load History
+  useEffect(() => {
+    if (user?.id) {
+      const history = loadIvoHistory(user.id, "fab");
+      if (history && history.length > 0) {
+        setMessages(history);
+      } else {
+        setMessages(INITIAL_MSGS);
+      }
+    }
+  }, [user?.id]);
 
   // Auto-scroll to bottom whenever messages change or loading state changes
   useEffect(() => {
@@ -98,7 +112,9 @@ export default function IvoTFab() {
       time: now,
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
+    if (user?.id) saveIvoHistory(user.id, "fab", newMessages);
     setDraft("");
     setIsLoading(true);
 
@@ -125,7 +141,9 @@ export default function IvoTFab() {
         }),
       };
 
-      setMessages((prev) => [...prev, botMsg]);
+      const updatedMessages = [...newMessages, botMsg];
+      setMessages(updatedMessages);
+      if (user?.id) saveIvoHistory(user.id, "fab", updatedMessages);
     } catch (error) {
       console.error("Error al comunicarse con Ivo-t:", error);
       const errorMsg: Msg = {
@@ -137,7 +155,11 @@ export default function IvoTFab() {
           minute: "2-digit",
         }),
       };
-      setMessages((prev) => [...prev, errorMsg]);
+      setMessages((prev) => {
+        const updated = [...prev, errorMsg];
+        if (user?.id) saveIvoHistory(user.id, "fab", updated);
+        return updated;
+      });
     } finally {
       setIsLoading(false);
       // Ensure focus is back on input after loading

@@ -4,7 +4,7 @@ import { useLocation } from "react-router-dom";
 import ivoLogo from "../assets/ivot-logo.png";
 import "./IvoT.css";
 import { useAuth } from "../store/auth";
-import { IvoChatService } from "../services/ivoChatService";
+import { IvoChatService, loadIvoHistory, saveIvoHistory } from "../services/ivoChatService";
 
 type Tool = {
   id: string;
@@ -66,10 +66,32 @@ const API_BASE_URL =
 // 🔹 Endpoint de chat de Ivo-t
 const API_URL = `${API_BASE_URL}/ivot/chat`;
 
+function extractEventFromMessage(rawText: string) {
+  const startTag = "<event>";
+  const endTag = "</event>";
+
+  const start = rawText.indexOf(startTag);
+  const end = rawText.indexOf(endTag);
+
+  if (start === -1 || end === -1) return { cleanText: rawText, event: null };
+
+  const jsonPart = rawText.slice(start + startTag.length, end).trim();
+  const cleanText =
+    (rawText.slice(0, start).trimEnd() + " " + rawText.slice(end + endTag.length).trimStart()).trim();
+
+  try {
+    const parsed = JSON.parse(jsonPart);
+    return { cleanText, event: parsed };
+  } catch (e) {
+    console.warn("No se pudo parsear el bloque <event> de Ivo-t:", e);
+    return { cleanText: rawText, event: null };
+  }
+}
+
 export default function IvoT() {
   const { user } = useAuth();
   const [selectedToolId, setSelectedToolId] = useState<string>("chat");
-  const [messages, setMessages] = useState<ChatMsg[]>(INITIAL_MSGS);
+  const [messages, setMessages] = useState<ChatMsg[]>([]); // Start empty, load in useEffect
   const [draft, setDraft] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -85,6 +107,18 @@ export default function IvoT() {
   const [lastAssistantSummary, setLastAssistantSummary] = useState<string | null>(null);
   const [showGenerateOptions, setShowGenerateOptions] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // Load History
+  useEffect(() => {
+    if (user?.id) {
+      const history = loadIvoHistory(user.id, "panel");
+      if (history && history.length > 0) {
+        setMessages(history);
+      } else {
+        setMessages(INITIAL_MSGS);
+      }
+    }
+  }, [user?.id]);
 
   useEffect(() => {
     if (mode === "documentModel" && modelId) {
@@ -122,6 +156,24 @@ export default function IvoT() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, showGenerateOptions]);
 
+  // Agenda Integration State
+  const [pendingEvent, setPendingEvent] = useState<any>(null);
+  const [availableUsers, setAvailableUsers] = useState<any[]>([]);
+  const [selectedInvitees, setSelectedInvitees] = useState<string[]>([]);
+
+  useEffect(() => {
+    // Fetch users for invitation matching
+    const token = localStorage.getItem('token');
+    fetch(`${API_BASE_URL}/users`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.ok) setAvailableUsers(data.data);
+      })
+      .catch(err => console.error("Error loading users for agenda", err));
+  }, []);
+
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
     const text = draft.trim();
@@ -139,7 +191,9 @@ export default function IvoT() {
       time: now,
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
+    if (user?.id) saveIvoHistory(user.id, "panel", newMessages);
     setDraft("");
     setIsLoading(true);
 
@@ -167,17 +221,33 @@ export default function IvoT() {
 
       const responseMessage = await IvoChatService.sendMessage(history);
 
+      // Parse <event> block using utility
+      const { cleanText, event } = extractEventFromMessage(responseMessage);
+      let finalMessage = cleanText;
+
+      if (event) {
+        console.log("Ivo-t propuso evento:", event);
+        setPendingEvent(event);
+
+        // Try to auto-match invitees
+        if (event.invitees && Array.isArray(event.invitees)) {
+          setSelectedInvitees([]);
+        }
+      }
+
       const botMsg: ChatMsg = {
         id: `b-${Date.now()}`,
         from: "ivo-t",
-        text: responseMessage,
+        text: finalMessage,
         time: new Date().toLocaleTimeString("es-AR", {
           hour: "2-digit",
           minute: "2-digit",
         }),
       };
 
-      setMessages((prev) => [...prev, botMsg]);
+      const updatedMessages = [...newMessages, botMsg];
+      setMessages(updatedMessages);
+      if (user?.id) saveIvoHistory(user.id, "panel", updatedMessages);
 
       // Detect summary in document mode
       if (mode === "documentModel") {
@@ -196,7 +266,40 @@ export default function IvoT() {
           minute: "2-digit",
         }),
       };
-      setMessages((prev) => [...prev, errorMsg]);
+      setMessages((prev) => {
+        const updated = [...prev, errorMsg];
+        if (user?.id) saveIvoHistory(user.id, "panel", updated);
+        return updated;
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function handleConfirmEvent() {
+    if (!pendingEvent) return;
+
+    try {
+      setIsLoading(true);
+      await IvoChatService.createAgendaEventFromIvo(pendingEvent, selectedInvitees);
+
+      const successMsg: ChatMsg = {
+        id: `sys-${Date.now()}`,
+        from: "ivo-t",
+        text: `✅ Listo, agendé la visita el día ${pendingEvent.date} a las ${pendingEvent.time}.`,
+        time: new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
+      };
+
+      setMessages(prev => {
+        const updated = [...prev, successMsg];
+        if (user?.id) saveIvoHistory(user.id, "panel", updated);
+        return updated;
+      });
+      setPendingEvent(null);
+      setSelectedInvitees([]);
+    } catch (err) {
+      console.error(err);
+      alert("Error al agendar: " + (err instanceof Error ? err.message : String(err)));
     } finally {
       setIsLoading(false);
     }
@@ -447,6 +550,62 @@ export default function IvoT() {
               </div>
             )}
 
+            {/* Agenda Confirmation Panel */}
+            {pendingEvent && !isLoading && (
+              <div className="ivot-message ivot-message--bot">
+                <div className="ivot-doc-generate-panel" style={{ borderLeft: '4px solid #8b5cf6' }}>
+                  <h5 style={{ margin: '0 0 0.5rem 0', fontWeight: 700, color: '#5b21b6' }}>📅 Confirmar Evento</h5>
+                  <div style={{ fontSize: '0.9rem', marginBottom: '1rem' }}>
+                    <div><strong>Título:</strong> {pendingEvent.title}</div>
+                    <div><strong>Fecha:</strong> {pendingEvent.date} {pendingEvent.time}</div>
+                    <div><strong>Duración:</strong> {pendingEvent.durationMinutes} min</div>
+                    <div><strong>Lugar:</strong> {pendingEvent.location || "Sin ubicación"}</div>
+                    <div><strong>Descripción:</strong> {pendingEvent.description || "Sin descripción"}</div>
+                    {pendingEvent.invitees && pendingEvent.invitees.length > 0 && (
+                      <div style={{ marginTop: '0.5rem' }}>
+                        <strong>Invitados sugeridos:</strong>
+                        <ul style={{ margin: '0.25rem 0 0.5rem 1rem', padding: 0, fontSize: '0.85rem', color: '#666' }}>
+                          {pendingEvent.invitees.map((inv: string, i: number) => <li key={i}>{inv}</li>)}
+                        </ul>
+                        <div style={{ marginTop: '0.5rem' }}>
+                          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                            Seleccionar usuarios de Inmovia:
+                          </label>
+                          <select
+                            multiple
+                            className="form-select form-select-sm"
+                            style={{ height: '80px' }}
+                            value={selectedInvitees}
+                            onChange={(e) => setSelectedInvitees(Array.from(e.target.selectedOptions, option => option.value))}
+                          >
+                            {availableUsers.map(u => (
+                              <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                            ))}
+                          </select>
+                          <small style={{ display: 'block', color: '#999', fontSize: '0.75rem' }}>Ctrl+Click para seleccionar varios</small>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                      onClick={handleConfirmEvent}
+                      className="btn btn-primary btn-sm"
+                      style={{ backgroundColor: '#7c3aed', borderColor: '#7c3aed' }}
+                    >
+                      Agendar Evento
+                    </button>
+                    <button
+                      onClick={() => setPendingEvent(null)}
+                      className="btn btn-outline-secondary btn-sm"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div ref={messagesEndRef} />
           </div>
 
@@ -485,3 +644,4 @@ export default function IvoT() {
     </div>
   );
 }
+

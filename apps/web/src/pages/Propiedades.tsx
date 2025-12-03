@@ -37,10 +37,10 @@ export type Propiedad = {
   contactId?: string;
 };
 
+import { apiFetch } from "../services/apiClient";
 import { useAuth } from "../store/auth";
 
 const Propiedades: React.FC = () => {
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001/api";
   const navigate = useNavigate();
   const { user } = useAuth();
 
@@ -55,13 +55,8 @@ const Propiedades: React.FC = () => {
 
   const fetchProperties = () => {
     setLoading(true);
-    // Include token in headers
-    const token = localStorage.getItem('token');
-    fetch(`${API_BASE_URL}/properties`, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    })
+    // apiFetch automatically adds token from localStorage
+    apiFetch("/properties")
       .then(res => res.json())
       .then(data => {
         if (data.ok) setItems(data.data);

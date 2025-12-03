@@ -28,5 +28,58 @@ export const IvoChatService = {
             console.error("Error al comunicarse con Ivo-t:", error);
             throw error;
         }
+    },
+
+    async createAgendaEventFromIvo(eventData: any, inviteesUserIds: string[] = []) {
+        const body = {
+            title: eventData.title,
+            date: eventData.date,
+            time: eventData.time,
+            durationMinutes: eventData.durationMinutes ?? 60,
+            location: eventData.location ?? "",
+            description: eventData.description ?? "",
+            invitees: inviteesUserIds,
+        };
+
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_BASE_URL}/agenda/ivot/schedule`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+            },
+            body: JSON.stringify(body),
+        });
+
+        if (!res.ok) {
+            const text = await res.text();
+            throw new Error("Error creando evento desde Ivo-t: " + text);
+        }
+
+        return res.json();
     }
 };
+
+function getHistoryKey(userId: string, context: "panel" | "fab") {
+    return `ivot_history_${userId}_${context}`;
+}
+
+export function loadIvoHistory(userId: string, context: "panel" | "fab") {
+    if (!userId) return [];
+    const key = getHistoryKey(userId, context);
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return [];
+    try {
+        return JSON.parse(raw);
+    } catch {
+        return [];
+    }
+}
+
+export function saveIvoHistory(userId: string, context: "panel" | "fab", messages: any[]) {
+    if (!userId) return;
+    const key = getHistoryKey(userId, context);
+    // Limit to last 50 messages
+    const trimmed = messages.slice(-50);
+    window.localStorage.setItem(key, JSON.stringify(trimmed));
+}
