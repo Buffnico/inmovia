@@ -10,10 +10,14 @@ const ContactModel = require('../models/contactModel');
 const upload = multer({ storage: multer.memoryStorage() });
 
 const { canReadProperty, canEditProperty, ROLES } = require('../utils/permissions');
+const { authRequired } = require('../middleware/authMiddleware');
 
 // GET /api/properties - List all properties
-router.get('/', (req, res) => {
+router.get('/', authRequired, (req, res) => {
     const properties = PropertyModel.findAll();
+
+    console.log('GET /properties -> total properties:', properties.length, 'user:', req.user && { id: req.user.id, role: req.user.role });
+
     // Filter properties based on user role
     const visibleProperties = properties.filter(p => canReadProperty(req.user, p));
 
@@ -24,7 +28,7 @@ router.get('/', (req, res) => {
 });
 
 // GET /api/properties/:id - Get property by ID
-router.get('/:id', (req, res) => {
+router.get('/:id', authRequired, (req, res) => {
     const prop = PropertyModel.findById(req.params.id);
     if (!prop) return res.status(404).json({ ok: false, message: "Propiedad no encontrada" });
 
@@ -101,14 +105,24 @@ router.post('/', (req, res) => {
 });
 
 // POST /api/properties/importar/remax-excel - Import from RE/MAX CSV
-router.post('/importar/remax-excel', upload.single('file'), (req, res) => {
-    // Only authorized roles should import? For now assume middleware handles basic auth.
-    // Maybe restrict import to ADMIN/OWNER?
-    if (![ROLES.OWNER, ROLES.ADMIN, ROLES.MARTILLERO].includes(req.user.role)) {
-        return res.status(403).json({ ok: false, message: "No tienes permiso para importar propiedades." });
-    }
 
+router.post('/importar/remax-excel', authRequired, upload.single('file'), async (req, res) => {
     try {
+        console.log("POST /properties/importar/remax-excel - CSV recibido", {
+            user: req.user && { id: req.user.id, role: req.user.role },
+            file: req.file && { originalname: req.file.originalname, mimetype: req.file.mimetype },
+        });
+
+        // Ensure user is authenticated
+        if (!req.user) {
+            return res.status(401).json({ ok: false, message: "No autorizado. Iniciá sesión para importar propiedades." });
+        }
+
+        // Only authorized roles should import
+        if (![ROLES.OWNER, ROLES.ADMIN, ROLES.MARTILLERO].includes(req.user.role)) {
+            return res.status(403).json({ ok: false, message: "No tienes permiso para importar propiedades." });
+        }
+
         if (!req.file) {
             return res.status(400).json({ ok: false, message: 'No se subió ningún archivo.' });
         }
@@ -129,17 +143,45 @@ router.post('/importar/remax-excel', upload.single('file'), (req, res) => {
             created: 0,
             updated: 0,
             skipped: 0,
-            errors: 0
+            errors: 0,
+            unassignedAgent: 0
         };
 
-        const properties = PropertyModel.findAll();
+        // Note: In a real scenario, we might want to optimize this to not fetch ALL properties
+        // but for now we keep the existing logic.
+        // const properties = PropertyModel.findAll(); 
 
-        rawData.forEach(row => {
+        // Process rows sequentially or in parallel?
+        // Sequential is safer for shared state if any, but parallel is faster.
+        // Given the synchronous nature of PropertyModel (mock?), we can just loop.
+
+        for (const row of rawData) {
             try {
                 const mlsId = row['MLSID'] ? String(row['MLSID']).trim() : null;
                 if (!mlsId) {
                     stats.skipped++;
-                    return;
+                    continue;
+                }
+
+                // Check if exists
+                const existingProp = PropertyModel.findById(mlsId);
+
+                // Try to resolve agent if possible, but don't block import
+                // For now, we default to null if not found, or maybe we could try to match by name
+                // In this specific implementation, we are assigning to the importer (req.user.id)
+                // but we can flag if the CSV implies an agent that we don't have.
+                let assignedAgentId = req.user.id; // Default to importer
+
+                // If we wanted to try to match agent from CSV:
+                // const agentName = row['Nombre Agente'];
+                // const agentUser = UserModel.findByName(agentName);
+                // if (agentUser) assignedAgentId = agentUser.id;
+                // else { assignedAgentId = null; stats.unassignedAgent++; }
+
+                // For now, we keep the logic of assigning to the importer to ensure visibility,
+                // but we can track if the CSV had an agent name that differs.
+                if (row['Nombre Agente'] && row['Nombre Agente'] !== 'Sin Asignar') {
+                    // logic to check if agent exists could go here
                 }
 
                 // Map fields
@@ -203,7 +245,10 @@ router.post('/importar/remax-excel', upload.single('file'), (req, res) => {
 
                     // Assign to current user if importing? Or try to match agent name?
                     // For now, let's assign to the importer for simplicity or leave null
-                    assignedAgentId: req.user.id,
+                    assignedAgentId: assignedAgentId,
+
+                    // IMPORTANT: Set ownerUserId to current user so it shows up in their list
+                    ownerUserId: req.user.id,
 
                     // Metadata for extra fields
                     metadata: {
@@ -214,9 +259,6 @@ router.post('/importar/remax-excel', upload.single('file'), (req, res) => {
                     // Title generation (simple logic)
                     titulo: `${row['Tipo de Propiedad'] || 'Propiedad'} en ${row['Barrio'] || row['Localidad'] || 'Venta'} - ${row['Ambientes'] || '?'} Amb`
                 };
-
-                // Check if exists
-                const existingProp = PropertyModel.findById(mlsId);
 
                 if (existingProp) {
                     // Update
@@ -232,7 +274,7 @@ router.post('/importar/remax-excel', upload.single('file'), (req, res) => {
                 console.error("Error processing row:", err);
                 stats.errors++;
             }
-        });
+        }
 
         res.json({
             ok: true,

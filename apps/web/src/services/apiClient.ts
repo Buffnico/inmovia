@@ -30,24 +30,72 @@ export function buildApiUrl(path: string): string {
 /**
  * Wrapper around fetch to include credentials and standard headers if needed.
  */
-export async function apiFetch(path: string, options: RequestInit = {}) {
+export interface ApiClientOptions extends RequestInit {
+    rawResponse?: boolean;
+    auth?: boolean;
+}
+
+/**
+ * Wrapper around fetch to include credentials and standard headers if needed.
+ */
+export async function apiFetch(path: string, options: ApiClientOptions = {}) {
+    const { rawResponse, auth = true, ...fetchOptions } = options;
     const url = buildApiUrl(path);
 
-    // Default headers
-    const headers = new Headers(options.headers);
+    console.log('[apiFetch]', fetchOptions.method || 'GET', url, 'rawResponse=', rawResponse);
 
-    // Add token if it exists and not already present
+    // Default headers
+    const headers = new Headers(fetchOptions.headers);
+
+    // Add token if it exists and not already present, AND if auth is true
     const token = localStorage.getItem('token');
-    if (token && !headers.has('Authorization')) {
+    if (auth && token && !headers.has('Authorization')) {
         headers.set('Authorization', `Bearer ${token}`);
     }
 
-    const res = await fetch(url, {
-        credentials: "include", // Important for cookies if used, though we use Bearer token mostly
-        ...options,
-        headers
-    });
-    return res;
+    // Ensure Content-Type is NOT set if body is FormData (browser handles it)
+    if (fetchOptions.body instanceof FormData) {
+        if (headers.has('Content-Type')) {
+            headers.delete('Content-Type');
+        }
+    } else if (!headers.has('Content-Type')) {
+        // Default to JSON if not specified and not FormData
+        // headers.set('Content-Type', 'application/json'); 
+    }
+
+    try {
+        const res = await fetch(url, {
+            credentials: "include",
+            ...fetchOptions,
+            headers
+        });
+
+        // If rawResponse is true, return the response object directly
+        if (rawResponse) {
+            return res;
+        }
+
+        // Default behavior: if !ok, try to parse JSON and throw Error with clear message
+        if (!res.ok) {
+            let message = 'Error en la petición a la API.';
+            try {
+                const data = await res.json();
+                if (data && typeof data.message === 'string') {
+                    message = data.message;
+                }
+            } catch (_) {
+                // ignore
+            }
+            const error = new Error(message) as Error & { status?: number };
+            (error as any).status = res.status;
+            throw error;
+        }
+
+        return res;
+    } catch (error) {
+        console.error('[apiFetch] network error', error);
+        throw error;
+    }
 }
 
 export const API_CONFIG = {

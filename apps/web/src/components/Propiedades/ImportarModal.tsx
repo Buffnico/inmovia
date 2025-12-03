@@ -38,6 +38,8 @@ const ImportarModal: React.FC<ImportarModalProps> = ({ onClose, onSuccess }) => 
         setUploading(true);
         setError(null);
 
+        console.log('[ImportarModal] uploading CSV', file.name);
+
         const formData = new FormData();
         formData.append('file', file);
 
@@ -45,22 +47,39 @@ const ImportarModal: React.FC<ImportarModalProps> = ({ onClose, onSuccess }) => 
             const res = await apiFetch('/properties/importar/remax-excel', {
                 method: 'POST',
                 body: formData,
-                // Do not set Content-Type header when sending FormData, 
-                // fetch/browser sets it automatically with boundary.
-                // apiFetch preserves this behavior as long as we don't override it in options.
+                auth: true,
+                rawResponse: true,
             });
+
+            if (!res.ok) {
+                let message = "Error al importar propiedades desde el CSV.";
+                try {
+                    const data = await res.json();
+                    if (data && typeof data.message === 'string') {
+                        message = data.message;
+                    }
+                } catch (e) {
+                    // If response is not JSON, keep default message
+                }
+                setError(message);
+                return;
+            }
 
             const data = await res.json();
 
             if (data.ok) {
                 setStats(data.stats);
-                // Don't close immediately so user can see stats
             } else {
                 setError(data.message || "Error al importar.");
             }
-        } catch (err) {
-            console.error(err);
-            setError("Error de conexión al servidor.");
+        } catch (err: any) {
+            console.error('[ImportarModal] network or apiFetch error', err);
+            // Only show generic network error if it's a fetch error
+            if (err instanceof TypeError || err.message === 'Failed to fetch') {
+                setError("Error de conexión al servidor. Verificá tu conexión.");
+            } else {
+                setError(err.message || "Ocurrió un error inesperado al importar el CSV.");
+            }
         } finally {
             setUploading(false);
         }
